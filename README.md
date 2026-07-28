@@ -2,7 +2,7 @@
 
 An interactive, self-contained web map for visualizing locations across the US. Built as a single HTML file — no server, no build step, no dependencies to install.
 
-**Live site:** `https://c1airewang.github.io/maps`
+**Live site:** `https://hhammer-1.github.io/Maps`
 
 ---
 
