@@ -794,13 +794,13 @@ function hexPoints(cx,cy,r){
 // All other shapes are simple centered glyphs, anchored at their center —
 // standard practice for non-pointer map markers.
 const SHAPE_DEFS={
-  teardrop:{w:18,h:23,svg:color=>`<g transform="scale(0.6429)"><path d="M14 0C6.268 0 0 6.268 0 14c0 9.333 14 22 14 22S28 23.333 28 14C28 6.268 21.732 0 14 0z" fill="${color}"/><circle cx="14" cy="14" r="5" fill="white" opacity="0.9"/></g>`},
-  circle:{w:22,h:22,svg:color=>`<circle cx="11" cy="11" r="9" fill="${color}" stroke="white" stroke-width="2"/>`},
-  square:{w:20,h:20,svg:color=>`<rect x="2" y="2" width="16" height="16" rx="3" fill="${color}" stroke="white" stroke-width="2"/>`},
-  diamond:{w:22,h:22,svg:color=>`<polygon points="11,2 20,11 11,20 2,11" fill="${color}" stroke="white" stroke-width="2" stroke-linejoin="round"/>`},
-  triangle:{w:22,h:20,svg:color=>`<polygon points="11,2 20,18 2,18" fill="${color}" stroke="white" stroke-width="2" stroke-linejoin="round"/>`},
-  star:{w:24,h:24,svg:color=>`<polygon points="${starPoints(12,12,10,4.2,5)}" fill="${color}" stroke="white" stroke-width="1.5" stroke-linejoin="round"/>`},
-  hexagon:{w:24,h:22,svg:color=>`<polygon points="${hexPoints(12,11,10)}" fill="${color}" stroke="white" stroke-width="2" stroke-linejoin="round"/>`}
+  teardrop:{w:28,h:36,svg:color=>`<path d="M14 0C6.268 0 0 6.268 0 14c0 9.333 14 22 14 22S28 23.333 28 14C28 6.268 21.732 0 14 0z" fill="${color}"/><circle cx="14" cy="14" r="5" fill="white" opacity="0.9"/>`},
+  circle:{w:30,h:30,svg:color=>`<circle cx="15" cy="15" r="13" fill="${color}" stroke="white" stroke-width="2.5"/>`},
+  square:{w:28,h:28,svg:color=>`<rect x="3" y="3" width="22" height="22" rx="4" fill="${color}" stroke="white" stroke-width="2.5"/>`},
+  diamond:{w:30,h:30,svg:color=>`<polygon points="15,3 27,15 15,27 3,15" fill="${color}" stroke="white" stroke-width="2.5" stroke-linejoin="round"/>`},
+  triangle:{w:30,h:27,svg:color=>`<polygon points="15,3 27,24 3,24" fill="${color}" stroke="white" stroke-width="2.5" stroke-linejoin="round"/>`},
+  star:{w:32,h:32,svg:color=>`<polygon points="${starPoints(16,16,13,5.5,5)}" fill="${color}" stroke="white" stroke-width="2" stroke-linejoin="round"/>`},
+  hexagon:{w:32,h:29,svg:color=>`<polygon points="${hexPoints(16,15,13)}" fill="${color}" stroke="white" stroke-width="2.5" stroke-linejoin="round"/>`}
 };
 const SHAPE_NAMES=Object.keys(SHAPE_DEFS);
 
