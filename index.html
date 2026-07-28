@@ -1,0 +1,1782 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Location Map</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0f1117;color:#e8eaf0;height:100vh;display:flex;flex-direction:column;overflow:hidden}
+  #topbar{display:flex;align-items:center;gap:10px;padding:10px 16px;background:#161b27;border-bottom:1px solid #2a2f3e;flex-shrink:0;flex-wrap:wrap}
+  #topbar h1{font-size:15px;font-weight:600;color:#e8eaf0;letter-spacing:.3px;margin-right:4px}
+  .tb-btn{background:#1e2535;border:1px solid #2a3045;color:#c5c9d6;padding:6px 12px;border-radius:6px;font-size:12px;cursor:pointer;display:flex;align-items:center;gap:5px;white-space:nowrap;transition:background .15s}
+  .tb-btn:hover{background:#252d40;color:#e8eaf0}
+  .tb-btn.primary{background:#2563eb;border-color:#3b7af8;color:#fff}
+  .tb-btn.primary:hover{background:#1d55d4}
+  .spacer{flex:1}
+  #map{flex:1}
+  #sidebar{position:absolute;top:52px;right:0;width:340px;height:calc(100vh - 52px);background:#161b27;border-left:1px solid #2a2f3e;z-index:1000;overflow-y:auto;transform:translateX(100%);transition:transform .25s ease;display:flex;flex-direction:column}
+  #sidebar.open{transform:translateX(0)}
+  .sidebar-header{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid #2a2f3e;flex-shrink:0}
+  .sidebar-header h2{font-size:14px;font-weight:600;color:#e8eaf0}
+  .close-btn{background:none;border:none;color:#6b7280;cursor:pointer;font-size:18px;padding:2px 6px;border-radius:4px}
+  .close-btn:hover{background:#1e2535;color:#e8eaf0}
+  .sidebar-body{padding:14px 16px;flex:1}
+  label{display:block;font-size:12px;color:#9ca3af;margin-bottom:4px;margin-top:10px}
+  input[type=text],input[type=url],input[type=password],select,textarea{width:100%;background:#1e2535;border:1px solid #2a3045;color:#e8eaf0;padding:7px 10px;border-radius:6px;font-size:13px;outline:none;transition:border .15s}
+  input:focus,select:focus,textarea:focus{border-color:#2563eb}
+  textarea{resize:vertical;min-height:60px}
+  .btn{padding:8px 14px;border-radius:6px;font-size:13px;cursor:pointer;border:1px solid transparent;transition:background .15s}
+  .btn-primary{background:#2563eb;color:#fff;border-color:#3b7af8}
+  .btn-primary:hover{background:#1d55d4}
+  .btn-secondary{background:#1e2535;color:#c5c9d6;border-color:#2a3045}
+  .btn-secondary:hover{background:#252d40}
+  #pin-list{list-style:none;margin-top:4px}
+  .pin-item{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:6px;cursor:pointer;transition:background .15s}
+  .pin-item:hover{background:#1e2535}
+  .pin-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+  .pin-name{font-size:13px;color:#c5c9d6;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .pin-cat{font-size:10px;padding:2px 6px;border-radius:10px;background:#1e2535;color:#6b7280;white-space:nowrap}
+  #legend{position:absolute;bottom:24px;left:16px;z-index:999;background:#ffffffee;border:1px solid #d1d5db;border-radius:8px;backdrop-filter:blur(6px);max-width:210px;display:none}
+  #legend-inner{padding:10px 14px}
+  .legend-scroll-loc{max-height:300px;overflow-y:auto;margin-right:-4px;padding-right:4px}
+  .legend-scroll-reg{max-height:150px;overflow-y:auto;margin-right:-4px;padding-right:4px}
+  .legend-scroll-tag{max-height:150px;overflow-y:auto;margin-right:-4px;padding-right:4px}
+  .legend-section-title{font-size:10px;font-weight:600;color:#6b7280;letter-spacing:.6px;text-transform:uppercase;margin-bottom:5px;margin-top:8px}
+  .legend-section-title:first-child{margin-top:0}
+  .legend-divider{border:none;border-top:1px solid #e5e7eb;margin:8px 0}
+  .legend-item{display:flex;align-items:center;gap:7px;margin:4px 0;font-size:12px;color:#374151;cursor:pointer;user-select:none}
+  .legend-dot{width:11px;height:11px;border-radius:50%;flex-shrink:0}
+  .legend-swatch{width:14px;height:10px;border-radius:2px;flex-shrink:0;border:1px solid #0002}
+  .legend-item.muted{opacity:.35}
+  .modal{background:#161b27;border:1px solid #2a2f3e;border-radius:10px;padding:24px;width:420px;max-width:95vw;max-height:90vh;overflow-y:auto}
+  #toast{position:fixed;bottom:24px;right:24px;background:#22c55e;color:#fff;padding:10px 16px;border-radius:8px;font-size:13px;z-index:3000;opacity:0;transform:translateY(10px);transition:all .2s;pointer-events:none}
+  #toast.show{opacity:1;transform:translateY(0)}
+  #toast.error{background:#ef4444}
+  #geocode-status{font-size:11px;color:#6b7280;margin-top:4px;min-height:14px}
+  .section-title{font-size:11px;font-weight:600;color:#6b7280;letter-spacing:.6px;text-transform:uppercase;margin:18px 0 8px}
+  .leaflet-popup-content-wrapper{background:#161b27;border:1px solid #2a2f3e;border-radius:8px;box-shadow:0 4px 24px #0008;color:#e8eaf0}
+  .leaflet-popup-tip{background:#161b27}
+  .popup-name{font-size:14px;font-weight:600;margin-bottom:4px}
+  .popup-addr{font-size:12px;color:#9ca3af;margin-bottom:8px}
+  .popup-cat{display:inline-block;font-size:11px;padding:2px 8px;border-radius:10px;margin-bottom:8px}
+  .popup-link{display:block;font-size:12px;color:#60a5fa;word-break:break-all}
+  .popup-link:hover{color:#93c5fd}
+  .state-popup-name{font-size:13px;font-weight:600;margin-bottom:4px;color:#e8eaf0}
+  .state-popup-cat{font-size:12px;color:#9ca3af}
+  @keyframes pin-bounce{
+    0%,100%{transform:translateY(0)}
+    30%{transform:translateY(-10px)}
+    60%{transform:translateY(-5px)}
+    80%{transform:translateY(-8px)}
+  }
+  .pin-bouncing .pin-wrap{animation:pin-bounce .7s ease infinite}
+  /* Excel format guide */
+</style>
+</head>
+<body>
+
+<div id="topbar">
+  <button class="tb-btn" onclick="openSidebar('list')">☰ List View</button>
+  <div id="url-area" style="display:flex;align-items:center;gap:6px;flex:1;max-width:480px;margin:0 8px">
+    <input type="password" id="sheet-url-input" placeholder="Paste Google Sheets URL to get started…"
+      style="flex:1;background:#1e2535;border:1px solid #2a3045;color:#c5c9d6;padding:5px 10px;border-radius:6px;font-size:12px;outline:none;min-width:0"
+      oninput="onUrlInput()" value="">
+    <button id="url-eye" onclick="toggleUrlVisibility()" title="Show/hide URL"
+      style="background:none;border:none;color:#6b7280;cursor:pointer;padding:4px;flex-shrink:0;display:flex;align-items:center;border-radius:4px;transition:color .15s"
+      onmouseover="this.style.color='#c5c9d6'" onmouseout="this.style.color='#6b7280'">
+      <svg id="eye-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+    </button>
+    <button id="sync-btn" class="tb-btn primary" onclick="syncFromSheet()" style="flex-shrink:0">🔄 Sync</button>
+  </div>
+  <label class="tb-btn" title="Upload Excel file (local test mode)" style="cursor:pointer;margin:0">
+    ⬆ Excel
+    <input type="file" accept=".xlsx,.xls" id="xlsx-upload" style="display:none" onchange="handleXlsxUpload(event)">
+  </label>
+  <div style="display:flex;align-items:center;gap:5px;margin-left:4px">
+    <span style="font-size:11px;color:#6b7280;white-space:nowrap">Radius (mi)</span>
+    <input type="number" id="radius-input" min="1" max="500" value="100"
+      style="width:58px;background:#1e2535;border:1px solid #2a3045;color:#c5c9d6;padding:5px 7px;border-radius:6px;font-size:12px;outline:none"
+      oninput="onRadiusInput()" title="Circle radius in miles">
+    <button id="radius-toggle" class="tb-btn" onclick="toggleCircles()" title="Show/hide radius circles" style="padding:5px 8px">⊙</button>
+  </div>
+  <div style="display:flex;align-items:center;gap:6px;margin-left:4px;flex-shrink:0">
+    <select id="metric-select" onchange="onMetricChange()"
+      style="display:none;background:#1e2535;border:1px solid #2a3045;color:#c5c9d6;padding:5px 7px;border-radius:6px;font-size:12px;outline:none;cursor:pointer">
+      <option value="none">Filter by metric…</option>
+    </select>
+    <div id="metric-slider-wrap" style="display:none;align-items:center;gap:8px">
+      <div style="display:flex;flex-direction:column;gap:4px">
+        <div style="display:flex;align-items:center;gap:6px">
+          <span style="font-size:10px;color:#6b7280;width:26px;text-align:right;flex-shrink:0">Low</span>
+          <input type="range" id="metric-slider-lo" style="width:100px;accent-color:#3b82f6" oninput="onSliderChange('lo')">
+          <input type="text" id="metric-val-lo" style="width:62px;background:#1e2535;border:1px solid #2a3045;color:#c5c9d6;padding:3px 6px;border-radius:4px;font-size:11px;outline:none;text-align:right"
+            onchange="onValueInput('lo')" onkeydown="if(event.key==='Enter')onValueInput('lo')">
+        </div>
+        <div style="display:flex;align-items:center;gap:6px">
+          <span style="font-size:10px;color:#6b7280;width:26px;text-align:right;flex-shrink:0">High</span>
+          <input type="range" id="metric-slider-hi" style="width:100px;accent-color:#3b82f6" oninput="onSliderChange('hi')">
+          <input type="text" id="metric-val-hi" style="width:62px;background:#1e2535;border:1px solid #2a3045;color:#c5c9d6;padding:3px 6px;border-radius:4px;font-size:11px;outline:none;text-align:right"
+            onchange="onValueInput('hi')" onkeydown="if(event.key==='Enter')onValueInput('hi')">
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="map"></div>
+<div id="legend"><div id="legend-inner"></div></div>
+
+<div id="sidebar">
+  <div class="sidebar-header">
+    <h2 id="sidebar-title">Locations</h2>
+    <div style="display:flex;gap:4px;align-items:center">
+      <button onclick="exportSidebar()" title="Export current list to CSV"
+        style="background:none;border:1px solid #2a3045;color:#9ca3af;cursor:pointer;font-size:11px;padding:2px 7px;border-radius:4px;display:flex;align-items:center;gap:3px;line-height:1">&#8595; CSV</button>
+      <button id="esc-btn" onclick="escapeSelection()" title="Clear selection (Esc)"
+        style="display:none;background:none;border:1px solid #2a3045;color:#9ca3af;cursor:pointer;font-size:11px;padding:2px 7px;border-radius:4px">Esc</button>
+      <button class="close-btn" onclick="closeSidebar()">✕</button>
+    </div>
+  </div>
+  <div class="sidebar-body" id="sidebar-body"></div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+const SHEET_URL_KEY = 'mapapp_sheet_url';
+const DATA_KEY = 'mapapp_locations';
+const CAT_KEY  = 'mapapp_categories';   // [{name, color}]
+const REGIONS_KEY = 'mapapp_regions';   // {stateName: {category, color}}
+const REGION_CATS_KEY = 'mapapp_region_cats';
+const RADIUS_KEY     = 'mapapp_radius_miles'; // Key string for local storage
+
+// Fallback palette if no cell color found
+const FALLBACK_COLORS = ['#ef4444','#f97316','#eab308','#22c55e','#14b8a6','#3b82f6','#8b5cf6','#ec4899','#f43f5e','#06b6d4'];
+
+let locations      = JSON.parse(localStorage.getItem(DATA_KEY)||'[]');
+// categories: [{name: string, color: string}]
+let categories     = JSON.parse(localStorage.getItem(CAT_KEY)||'[]');
+if(!categories.length) categories = [{name:'Our Locations',color:'#3b82f6'},{name:'Partners',color:'#22c55e'},{name:'Prospects',color:'#f97316'},{name:'Competitors',color:'#ef4444'}];
+let hiddenCats     = new Set();
+let activeTags     = new Set(); // empty = no tag filter (show all)
+let tagMode        = 'OR';      // 'OR' or 'AND'
+let activeMetric   = 'none';    // which metric is being filtered
+let metricRange    = [null,null]; // [min, max] of slider — null = no filter
+let markers        = {};
+
+// regions: { stateName -> {category, color} }
+let regions        = JSON.parse(localStorage.getItem(REGIONS_KEY)||'{}');
+// regionCategories: [{name, color}]
+let regionCategories = JSON.parse(localStorage.getItem(REGION_CATS_KEY)||'[]');
+let hiddenRegionCats = new Set();
+let radiusMiles      = parseFloat(localStorage.getItem('mapapp_radius_miles')||'100');
+let circlesVisible   = true;
+let circleLayerMap   = {}; // loc.id -> L.circle
+let stateLayerGroup  = L.layerGroup();
+let statesGeoJSON    = null;
+let stateLayerMap    = {};
+
+// ── Map init ─────────────────────────────────────────────────────────────────
+const map = L.map('map',{zoomControl:true}).setView([39.5,-98.35],4);
+// Create a pane above overlayPane (z-index 400) for circles so they're above state fills
+map.createPane('circlePane');
+map.getPane('circlePane').style.zIndex=450;
+map.getPane('circlePane').style.pointerEvents='auto';
+L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',{attribution:'© CartoDB',maxZoom:19}).addTo(map);
+// State layer pane — below circle pane
+map.createPane('statePane');
+map.getPane('statePane').style.zIndex=350;
+map.getPane('statePane').style.pointerEvents='none';
+stateLayerGroup.addTo(map);
+
+// Handle state hover + click via map-level events so circles always win
+let hoveredStateName = null;
+map.on('mousemove', function(e){
+  if(!statesGeoJSON) return;
+  const hit = statesGeoJSON.features.find(f=>pointInGeoJSONFeature(e.latlng, f));
+  const name = hit?.properties?.name || null;
+  if(name === hoveredStateName) return;
+  // Un-hover previous
+  if(hoveredStateName && stateLayerMap[hoveredStateName] && hoveredStateName!==selectedStateName){
+    const prev=stateLayerMap[hoveredStateName];
+    const r=regions[hoveredStateName];
+    if(r&&!hiddenRegionCats.has(r.category))
+      prev.setStyle({fillColor:r.color,fillOpacity:.28,color:r.color,weight:1.5,opacity:.7});
+    else
+      prev.setStyle({fillColor:'transparent',fillOpacity:0,color:'transparent',weight:0,opacity:0});
+  }
+  hoveredStateName = name;
+  // Hover new
+  if(name && name!==selectedStateName && stateLayerMap[name]){
+    const r=regions[name];
+    if(r&&!hiddenRegionCats.has(r.category))
+      stateLayerMap[name].setStyle({fillOpacity:.45});
+    else
+      stateLayerMap[name].setStyle({fillColor:'#94a3b8',fillOpacity:.15,color:'#94a3b8',weight:1,opacity:.4});
+  }
+  map.getContainer().style.cursor = name ? 'pointer' : '';
+});
+
+map.on('click', function(e){
+  if(!statesGeoJSON) return;
+  // Ignore if click came from a circle or marker (they have their own handlers)
+  if(e.originalEvent._handled) return;
+  const hit = statesGeoJSON.features.find(f=>pointInGeoJSONFeature(e.latlng, f));
+  if(hit) showPinsInState(hit.properties.name, hit, stateLayerMap[hit.properties.name]);
+});
+
+// ── Region polygons: US states + Canadian provinces + world countries ───────
+// We merge three sources into one FeatureCollection. Each feature gets a
+// `name` property (state, province, or country). The US and Canada are
+// removed from the world-countries layer so they don't overlap with the
+// finer-grained state/province layers.
+(async function loadRegionGeo(){
+  const features=[];
+
+  // 1. US states (TopoJSON from us-atlas)
+  try{
+    const r=await fetch('https://cdn.jsdelivr.net/npm/us-atlas@3/states-10m.json');
+    const topo=await r.json();
+    const geo=topoToGeo(topo,topo.objects.states);
+    geo.features.forEach(f=>{
+      // us-atlas sets f.properties.name to the state name already
+      features.push(f);
+    });
+  }catch(e){console.warn('Could not load US states GeoJSON',e);}
+
+  // 2. Canadian provinces (Natural Earth, served via a public GeoJSON mirror)
+  try{
+    const r=await fetch('https://raw.githubusercontent.com/codeforgermany/click_that_hood/main/public/data/canada.geojson');
+    const geo=await r.json();
+    geo.features.forEach(f=>{
+      // This dataset uses `name` for the province name already
+      const provName=f.properties.name;
+      if(!provName) return;
+      f.properties.name=provName;
+      f.properties.kind='province';
+      features.push(f);
+    });
+  }catch(e){console.warn('Could not load Canadian provinces GeoJSON',e);}
+
+  // 3. World countries (excluding US and Canada — those are covered above)
+  try{
+    const r=await fetch('https://raw.githubusercontent.com/datasets/geo-countries/master/data/countries.geojson');
+    const geo=await r.json();
+    geo.features.forEach(f=>{
+      const p=f.properties||{};
+      // ADMIN is the country name in this dataset; fall back to `name` if present
+      const countryName=p.ADMIN||p.admin||p.name||p.NAME;
+      if(!countryName) return;
+      // Skip the US and Canada to avoid overlapping the finer layers
+      const lower=countryName.toLowerCase();
+      if(lower==='united states of america'||lower==='united states'||
+         lower==='canada') return;
+      f.properties.name=countryName;
+      f.properties.kind='country';
+      features.push(f);
+    });
+  }catch(e){console.warn('Could not load world countries GeoJSON',e);}
+
+  statesGeoJSON={type:'FeatureCollection',features};
+  renderStateLayer();
+})();
+
+function topoToGeo(topo,obj){
+  const sc=topo.transform?topo.transform.scale:[1,1];
+  const tr=topo.transform?topo.transform.translate:[0,0];
+  function decodeArc(arc){let x=0,y=0;return arc.map(p=>{x+=p[0];y+=p[1];return[x*sc[0]+tr[0],y*sc[1]+tr[1]];});}
+  function arcRing(idxs){let c=[];for(const i of idxs){const a=i<0?decodeArc(topo.arcs[~i]).reverse():decodeArc(topo.arcs[i]);c=c.concat(a.slice(0,-1));}return c;}
+  return{type:'FeatureCollection',features:obj.geometries.map(g=>{
+    let geo;
+    if(g.type==='Polygon') geo={type:'Polygon',coordinates:g.arcs.map(arcRing)};
+    else if(g.type==='MultiPolygon') geo={type:'MultiPolygon',coordinates:g.arcs.map(p=>p.map(arcRing))};
+    return{type:'Feature',properties:g.properties||{id:g.id},geometry:geo};
+  })};
+}
+
+const FIPS={
+  "01":"Alabama","02":"Alaska","04":"Arizona","05":"Arkansas","06":"California",
+  "08":"Colorado","09":"Connecticut","10":"Delaware","11":"District of Columbia",
+  "12":"Florida","13":"Georgia","15":"Hawaii","16":"Idaho","17":"Illinois",
+  "18":"Indiana","19":"Iowa","20":"Kansas","21":"Kentucky","22":"Louisiana",
+  "23":"Maine","24":"Maryland","25":"Massachusetts","26":"Michigan","27":"Minnesota",
+  "28":"Mississippi","29":"Missouri","30":"Montana","31":"Nebraska","32":"Nevada",
+  "33":"New Hampshire","34":"New Jersey","35":"New Mexico","36":"New York",
+  "37":"North Carolina","38":"North Dakota","39":"Ohio","40":"Oklahoma","41":"Oregon",
+  "42":"Pennsylvania","44":"Rhode Island","45":"South Carolina","46":"South Dakota",
+  "47":"Tennessee","48":"Texas","49":"Utah","50":"Vermont","51":"Virginia",
+  "53":"Washington","54":"West Virginia","55":"Wisconsin","56":"Wyoming"
+};
+const ABBR_TO_NAME={
+  AL:"Alabama",AK:"Alaska",AZ:"Arizona",AR:"Arkansas",CA:"California",CO:"Colorado",
+  CT:"Connecticut",DE:"Delaware",DC:"District of Columbia",FL:"Florida",GA:"Georgia",
+  HI:"Hawaii",ID:"Idaho",IL:"Illinois",IN:"Indiana",IA:"Iowa",KS:"Kansas",KY:"Kentucky",
+  LA:"Louisiana",ME:"Maine",MD:"Maryland",MA:"Massachusetts",MI:"Michigan",MN:"Minnesota",
+  MS:"Mississippi",MO:"Missouri",MT:"Montana",NE:"Nebraska",NV:"Nevada",NH:"New Hampshire",
+  NJ:"New Jersey",NM:"New Mexico",NY:"New York",NC:"North Carolina",ND:"North Dakota",
+  OH:"Ohio",OK:"Oklahoma",OR:"Oregon",PA:"Pennsylvania",RI:"Rhode Island",SC:"South Carolina",
+  SD:"South Dakota",TN:"Tennessee",TX:"Texas",UT:"Utah",VT:"Vermont",VA:"Virginia",
+  WA:"Washington",WV:"West Virginia",WI:"Wisconsin",WY:"Wyoming"
+};
+
+// Canadian provinces and territories — 2-letter postal abbreviations
+const CA_ABBR_TO_NAME={
+  AB:"Alberta",BC:"British Columbia",MB:"Manitoba",NB:"New Brunswick",
+  NL:"Newfoundland and Labrador",NS:"Nova Scotia",NT:"Northwest Territories",
+  NU:"Nunavut",ON:"Ontario",PE:"Prince Edward Island",QC:"Quebec",
+  SK:"Saskatchewan",YT:"Yukon"
+};
+// Canonical Canadian province names (so we can recognise them as-typed)
+const CA_PROVINCES=new Set(Object.values(CA_ABBR_TO_NAME));
+
+// Common country-name aliases → canonical name used in the countries GeoJSON
+// (ADMIN field from datasets/geo-countries). Add more here as needed.
+const COUNTRY_ALIASES={
+  "uk":"United Kingdom","u.k.":"United Kingdom","great britain":"United Kingdom",
+  "britain":"United Kingdom","england":"United Kingdom",
+  "usa":"United States of America","us":"United States of America",
+  "u.s.":"United States of America","u.s.a.":"United States of America",
+  "united states":"United States of America",
+  "uae":"United Arab Emirates","u.a.e.":"United Arab Emirates",
+  "south korea":"South Korea","korea":"South Korea","republic of korea":"South Korea",
+  "north korea":"North Korea","dprk":"North Korea",
+  "russia":"Russia","russian federation":"Russia",
+  "czech republic":"Czechia","czechia":"Czechia",
+  "ivory coast":"Ivory Coast","côte d'ivoire":"Ivory Coast","cote d'ivoire":"Ivory Coast",
+  "vietnam":"Vietnam","viet nam":"Vietnam",
+  "myanmar":"Myanmar","burma":"Myanmar",
+  "drc":"Democratic Republic of the Congo","dr congo":"Democratic Republic of the Congo",
+  "congo-kinshasa":"Democratic Republic of the Congo",
+  "congo":"Republic of the Congo","congo-brazzaville":"Republic of the Congo"
+};
+
+function normState(s){
+  const t=s.trim();
+  if(!t) return t;
+  const up=t.toUpperCase();
+  // US state abbreviation?
+  if(ABBR_TO_NAME[up]) return ABBR_TO_NAME[up];
+  // Canadian province abbreviation?
+  if(CA_ABBR_TO_NAME[up]) return CA_ABBR_TO_NAME[up];
+  // Exact US state name?
+  for(const v of Object.values(FIPS)) if(v.toLowerCase()===t.toLowerCase()) return v;
+  // Exact Canadian province name?
+  for(const v of CA_PROVINCES) if(v.toLowerCase()===t.toLowerCase()) return v;
+  // Country alias?
+  const aliased=COUNTRY_ALIASES[t.toLowerCase()];
+  if(aliased) return aliased;
+  // Otherwise pass through as-is; render will match country GeoJSON by name
+  return t;
+}
+
+// ── Color helpers ─────────────────────────────────────────────────────────────
+function normaliseHex(val){
+  if(!val) return null;
+  const v=String(val).trim();
+  if(!v) return null;
+  if(v.startsWith('#')&&(v.length===4||v.length===7)) return v.toLowerCase();
+  if(/^[0-9a-fA-F]{6}$/.test(v)) return '#'+v.toLowerCase();
+  if(/^[0-9a-fA-F]{3}$/.test(v)) return '#'+v.toLowerCase();
+  return null;
+}
+function catColor(catName){
+  const c=categories.find(c=>c.name===catName);
+  return c?c.color:(FALLBACK_COLORS[categories.length%FALLBACK_COLORS.length]);
+}
+function catShape(catName){
+  const c=categories.find(c=>c.name===catName);
+  return (c&&c.shape)||'teardrop';
+}
+function regionColor(stateName){
+  return regions[stateName]?.color||'#3b82f6';
+}
+function regionCat(stateName){
+  return regions[stateName]?.category||'';
+}
+
+// Extract hex color from SheetJS cell style
+// SheetJS stores fgColor as {rgb:"AARRGGBB"} or {theme:N, tint:T} or {indexed:N}
+// Excel indexed colors (partial):
+const EXCEL_INDEXED=['#000000','#ffffff','#ff0000','#00ff00','#0000ff','#ffff00','#ff00ff','#00ffff',
+  '#000000','#ffffff','#ff0000','#00ff00','#0000ff','#ffff00','#ff00ff','#00ffff',
+  '#800000','#008000','#000080','#808000','#800080','#008080','#c0c0c0','#808080',
+  '#9999ff','#993366','#ffffcc','#ccffff','#660066','#ff8080','#0066cc','#ccccff',
+  '#000080','#ff00ff','#ffff00','#00ffff','#800080','#800000','#008080','#0000ff',
+  '#00ccff','#ccffff','#ccffcc','#ffff99','#99ccff','#ff99cc','#cc99ff','#ffcc99',
+  '#3366ff','#33cccc','#99cc00','#ffcc00','#ff9900','#ff6600','#666699','#969696',
+  '#003366','#339966','#003300','#333300','#993300','#993366','#333399','#333333'];
+
+function themeColor(theme,tint){
+  // Approximate Office theme colors (Office default theme)
+  const THEMES=['#ffffff','#000000','#e7e6e6','#44546a','#4472c4','#ed7d31','#a9d18e','#ffc000','#ff0000','#00b0f0'];
+  const base=THEMES[theme]||'#888888';
+  if(!tint||tint===0) return base;
+  // Apply tint: positive = lighten, negative = darken
+  const r=parseInt(base.slice(1,3),16),g=parseInt(base.slice(3,5),16),b=parseInt(base.slice(5,7),16);
+  const t=tint>0?tint:-tint;
+  const mix=(c,light)=>tint>0?Math.round(c+(255-c)*t):Math.round(c*(1-t));
+  return '#'+[mix(r),mix(g),mix(b)].map(x=>x.toString(16).padStart(2,'0')).join('');
+}
+
+function cellFillColor(cell){
+  if(!cell||!cell.s) return null;
+  function parseColor(c){
+    if(!c) return null;
+    if(c.rgb){
+      const raw=c.rgb.toUpperCase();
+      // Transparent / no fill signals
+      if(raw==='00000000'||raw==='FFFFFFFF'||raw==='00FFFFFF') return null;
+      if(raw.length===8){
+        if(raw.slice(0,2)==='00') return null; // alpha=0 => transparent
+        return '#'+raw.slice(2).toLowerCase();
+      }
+      if(raw.length===6) return '#'+raw.toLowerCase();
+    }
+    if(typeof c.indexed==='number'){
+      if(c.indexed===64||c.indexed===65) return null; // default/transparent
+      return EXCEL_INDEXED[c.indexed]||null;
+    }
+    if(typeof c.theme==='number'){
+      // Theme 0=white, 1=black — skip these as they indicate no intentional fill
+      if(c.theme===0||c.theme===1) return null;
+      return themeColor(c.theme, c.tint||0);
+    }
+    return null;
+  }
+  // fgColor holds the solid fill color in Excel; bgColor is pattern background
+  const fgCol=parseColor(cell.s.fgColor);
+  if(fgCol) return fgCol;
+  if(cell.s.patternType==='solid') return parseColor(cell.s.bgColor);
+  return null;
+}
+
+// ── SheetJS helpers ───────────────────────────────────────────────────────────
+function readSheet(wb, nameHints){
+  // Find sheet by partial name match
+  for(const hint of nameHints){
+    const name=wb.SheetNames.find(n=>n.toLowerCase().includes(hint.toLowerCase()));
+    if(name) return {sheet:wb.Sheets[name],name};
+  }
+  return null;
+}
+
+function sheetCell(sheet, col, row){
+  // col: 0-based column index, row: 0-based row index
+  const addr=XLSX.utils.encode_cell({c:col,r:row});
+  return sheet[addr]||null;
+}
+
+function sheetVal(sheet, col, row){
+  const cell=sheetCell(sheet,col,row);
+  return cell?String(cell.v||'').trim():'';
+}
+
+function sheetRange(sheet){
+  const ref=sheet['!ref'];
+  if(!ref) return {s:{c:0,r:0},e:{c:0,r:0}};
+  return XLSX.utils.decode_range(ref);
+}
+
+// ── Parse Categories sheet ────────────────────────────────────────────────────
+// Row 0 = header. Col A = category name, Col B = hex color (e.g. #3b82f6).
+// Col B hex takes priority over cell fill color.
+// If neither present, uses fallback palette.
+function parseCategoriesSheet(sheet){
+  const range=sheetRange(sheet);
+  const cats=[];
+  // Detect if row 0 looks like a header (text, no hex)
+  const firstCell=sheetCell(sheet,0,0);
+  const startRow=firstCell&&firstCell.v&&!String(firstCell.v).startsWith('#')?1:0;
+  for(let r=startRow;r<=range.e.r;r++){
+    const nameCell=sheetCell(sheet,0,r);
+    if(!nameCell||!nameCell.v) continue;
+    const name=String(nameCell.v).trim();
+    if(!name) continue;
+    // Col B: hex text takes top priority
+    const hexCell=sheetCell(sheet,1,r);
+    const hexText=hexCell?String(hexCell.v||'').trim():'';
+    let color=null;
+    if(hexText) color=normaliseHex(hexText);
+    // Fall back to cell fill color
+    if(!color) color=cellFillColor(nameCell)||cellFillColor(hexCell);
+    cats.push({name, color: color||FALLBACK_COLORS[cats.length%FALLBACK_COLORS.length]});
+  }
+  return cats;
+}
+
+// ── Parse Locations sheet ─────────────────────────────────────────────────────
+// Row 0 = headers. Columns auto-detected by header name.
+function parseLocationsSheet(sheet){
+  const rows=XLSX.utils.sheet_to_json(sheet,{defval:''});
+  return rows;
+}
+
+// ── Parse Regions sheet ───────────────────────────────────────────────────────
+// Row 0 = header. Col A = state name/abbr (fill = shading color).
+// Col B = optional category label. States with no fill color are skipped.
+function parseRegionsSheet(sheet){
+  const range=sheetRange(sheet);
+  const result={}; // stateName -> {category, color}
+  const regionCats={}; // catName -> color
+  let skipped=0;
+  for(let r=1;r<=range.e.r;r++){
+    const stateCell=sheetCell(sheet,0,r);
+    if(!stateCell||!stateCell.v) continue;
+    const stateName=normState(String(stateCell.v).trim());
+    if(!stateName) continue;
+
+    // Debug: log raw style for first 10 rows so we can diagnose color issues
+    if(r<=10) console.log('Row',r,stateName,'cell.s=',JSON.stringify(stateCell.s));
+
+    // Col B: could be hex color OR category label — detect by content
+    const colBCell=sheetCell(sheet,1,r);
+    const colBVal=colBCell?String(colBCell.v||'').trim():'';
+    const colCCell=sheetCell(sheet,2,r);
+    const colCVal=colCCell?String(colCCell.v||'').trim():'';
+
+    // Priority for color: col B if it looks like a hex, then cell fill, then col C hex
+    let color=null;
+    if(colBVal&&(colBVal.startsWith('#')||/^[0-9a-fA-F]{6}$/.test(colBVal))){
+      color=normaliseHex(colBVal);
+    }
+    if(!color) color=cellFillColor(stateCell);
+    if(!color&&colCVal&&(colCVal.startsWith('#')||/^[0-9a-fA-F]{6}$/.test(colCVal))){
+      color=normaliseHex(colCVal);
+    }
+    if(!color){skipped++;continue;}
+
+    // Category: if col B was NOT a hex, it's the label; otherwise col C is label
+    let catName='';
+    if(colBVal&&!colBVal.startsWith('#')&&!/^[0-9a-fA-F]{6}$/.test(colBVal)){
+      catName=colBVal; // col B = category label
+    } else if(colCVal&&!colCVal.startsWith('#')&&!/^[0-9a-fA-F]{6}$/.test(colCVal)){
+      catName=colCVal; // col C = category label
+    }
+    // If no label, group by color so same-colored states share a legend entry
+    if(!catName){
+      const existing=Object.entries(regionCats).find(([,c])=>c===color);
+      catName=existing?existing[0]:'Region '+Object.keys(regionCats).length+1;
+    }
+
+    result[stateName]={category:catName, color};
+    if(!regionCats[catName]) regionCats[catName]=color;
+  }
+  return{regions:result, regionCats:Object.entries(regionCats).map(([name,color])=>({name,color}))};
+}
+
+// ── Point-in-polygon (ray casting) ───────────────────────────────────────────
+// Works for both Polygon and MultiPolygon GeoJSON geometries
+function pointInPolygonRing(point, ring){
+  // ring: array of [lng, lat] pairs
+  const [px, py] = point;
+  let inside = false;
+  for(let i=0, j=ring.length-1; i<ring.length; j=i++){
+    const [xi,yi]=ring[i], [xj,yj]=ring[j];
+    if(((yi>py)!==(yj>py))&&(px<(xj-xi)*(py-yi)/(yj-yi)+xi))
+      inside=!inside;
+  }
+  return inside;
+}
+
+function pointInGeoJSONFeature(latlng, feature){
+  const pt=[latlng.lng, latlng.lat]; // GeoJSON is [lng, lat]
+  const geo=feature.geometry;
+  if(!geo) return false;
+  const rings = geo.type==='Polygon' ? [geo.coordinates]
+               : geo.type==='MultiPolygon' ? geo.coordinates
+               : [];
+  for(const poly of rings){
+    // poly[0] = outer ring, poly[1..] = holes
+    if(pointInPolygonRing(pt, poly[0])){
+      // Check not in a hole
+      let inHole=false;
+      for(let h=1;h<poly.length;h++) if(pointInPolygonRing(pt,poly[h])){inHole=true;break;}
+      if(!inHole) return true;
+    }
+  }
+  return false;
+}
+
+// ── Geocoding (Nominatim) ─────────────────────────────────────────────────────
+async function geocodeAddr(addr){
+  const r=await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(addr)}&format=json&limit=1`,
+    {headers:{'Accept-Language':'en','User-Agent':'LocationMapApp/1.0'}});
+  const j=await r.json();
+  if(j.length) return{lat:parseFloat(j[0].lat),lng:parseFloat(j[0].lon),display:j[0].display_name};
+  return null;
+}
+
+// ── State layer ───────────────────────────────────────────────────────────────
+let selectedStateName = null; // currently selected state
+
+function renderStateLayer(){
+  stateLayerGroup.clearLayers();stateLayerMap={};
+  if(!statesGeoJSON) return;
+  L.geoJSON(statesGeoJSON,{
+    // Show ALL states — shaded ones get color, unshaded are invisible but still interactive
+    style:f=>{
+      const n=f.properties.name;
+      const hasRegion=regions[n];
+      const cat=regions[n]?.category;
+      const color=regionColor(n);
+      const vis=hasRegion&&!hiddenRegionCats.has(cat);
+      return{
+        fillColor:vis?color:'transparent',
+        fillOpacity:vis?.28:0,
+        color:vis?color:'#94a3b8',
+        weight:.5,
+        opacity:vis?.7:.15,
+        interactive:false
+      };
+    },
+    onEachFeature:(f,layer)=>{
+      const n=f.properties.name;
+      const hasRegion=!!regions[n];
+      const cat=regions[n]?.category;
+      const color=hasRegion?regionColor(n):'#94a3b8';
+      stateLayerMap[n]=layer;
+
+      // interactions handled via map-level click (see below)
+    }
+  },{pane:'statePane'}).addTo(stateLayerGroup);
+  renderLegend();
+}
+
+function showPinsInState(stateName, feature, layer, pushToStack=true){
+  // Deselect previous
+  if(selectedStateName && stateLayerMap[selectedStateName]){
+    const prev=stateLayerMap[selectedStateName];
+    const prevRegion=regions[selectedStateName];
+    if(prevRegion&&!hiddenRegionCats.has(prevRegion.category))
+      prev.setStyle({fillColor:prevRegion.color,fillOpacity:.28,color:prevRegion.color,weight:1.5,opacity:.7});
+    else
+      prev.setStyle({fillColor:'transparent',fillOpacity:0,color:'transparent',weight:0,opacity:0});
+  }
+  selectedStateName=stateName;
+
+  // Highlight selected state
+  const selColor=regions[stateName]?regionColor(stateName):'#94a3b8';
+  layer.setStyle({fillColor:selColor,fillOpacity:.35,color:selColor,weight:2,opacity:.9});
+
+  // Only push to stack if drilling deeper (e.g. company → state would be unusual, but lateral state→state replaces)
+  if(pushToStack){
+    if(sidebarMode && sidebarMode!=='state') navStack.push({mode:sidebarMode, ctx:{...sidebarCtx}, selectedState:selectedStateName});
+    else navStack=[]; // lateral navigation resets stack
+  }
+  // Record sidebar context so legend toggles can re-filter live
+  sidebarMode='state';
+  sidebarCtx={stateName,feature};
+
+  document.getElementById('sidebar').classList.add('open');
+  showEscBtn();
+  renderSidebarState();
+}
+
+// Build the state-view sidebar contents from current locations + filters.
+// Called both on initial state click and whenever legend filters change.
+function renderSidebarState(){
+  const {stateName,feature}=sidebarCtx;
+  if(!feature) return;
+
+  // All pins inside the polygon (unfiltered — used for "X of Y" awareness if needed)
+  const allInside=locations.filter(l=>{
+    if(!l.lat||!l.lng) return false;
+    return pointInGeoJSONFeature({lat:l.lat,lng:l.lng}, feature);
+  });
+  // Apply legend visibility filter
+  const inside=filterByVisibleCats(allInside);
+
+  setGlow(inside.map(l=>l.id));
+  sidebarLocs=[...inside];
+
+  const catOrder=sortedCategories().map(c=>c.name);
+  const sorted=[...inside].sort((a,b)=>{
+    const ai=catOrder.indexOf(a.category),bi=catOrder.indexOf(b.category);
+    if(ai!==bi) return (ai<0?999:ai)-(bi<0?999:bi);
+    return a.name.localeCompare(b.name);
+  });
+
+  const items=sorted.map(l=>{
+    const c=catColor(l.category);
+    return `<li class="pin-item"
+      onmouseenter="bouncePin('${l.id}')"
+      onmouseleave="stopBounce()"
+      onclick="openPopupInPlace('${l.id}')"
+      style="flex-direction:column;align-items:flex-start;gap:2px">
+      <div style="display:flex;align-items:center;gap:8px;width:100%">
+        <span class="pin-dot" style="background:${c};flex-shrink:0"></span>
+        <span class="pin-name" style="flex:1">${l.name}</span>
+        <span class="pin-cat">${l.category||''}</span>
+      </div>
+      <div style="font-size:11px;color:#6b7280;padding-left:18px">${l.address}</div>
+    </li>`;
+  }).join('');
+
+  document.getElementById('sidebar-title').textContent=stateName;
+  document.getElementById('sidebar-body').innerHTML=`
+    <div style="font-size:12px;color:#6b7280;margin-bottom:10px">${inside.length} location${inside.length!==1?'s':''} in state</div>
+    <ul id="pin-list">${items||'<li style="color:#6b7280;font-size:13px;padding:10px">No locations in this state.</li>'}</ul>
+    <div style="margin-top:12px">
+      <button class="btn btn-secondary" style="font-size:11px;padding:4px 10px" onclick="clearStateSelection();setGlow([]);hideEscBtn();renderList()">← All locations</button>
+    </div>`;
+}
+
+function escapeSelection(){
+  if(navStack.length>0){
+    const prev=navStack.pop();
+    // Restore state highlight if previous view had one
+    if(prev.selectedState && stateLayerMap[prev.selectedState]){
+      const layer=stateLayerMap[prev.selectedState];
+      const selColor=regions[prev.selectedState]?regionColor(prev.selectedState):'#94a3b8';
+      layer.setStyle({fillColor:selColor,fillOpacity:.35,color:selColor,weight:2,opacity:.9});
+      selectedStateName=prev.selectedState;
+    }
+    if(prev.mode==='state') showPinsInState(prev.ctx.stateName, prev.ctx.feature, stateLayerMap[prev.ctx.stateName]||stateLayerMap[prev.selectedState], false);
+    else if(prev.mode==='radius') showPinsInRadius(prev.ctx.sourceLoc, false);
+    else if(prev.mode==='company') showCompanyLocations(prev.ctx.parent, false);
+    else { clearStateSelection(); setGlow([]); renderList(); }
+  } else {
+    clearStateSelection();
+    setGlow([]);
+    renderList();
+  }
+}
+
+function showEscBtn(){ document.getElementById('esc-btn').style.display='inline-block'; }
+function hideEscBtn(){ document.getElementById('esc-btn').style.display='none'; }
+
+function clearStateSelection(){
+  if(selectedStateName&&stateLayerMap[selectedStateName]){
+    const layer=stateLayerMap[selectedStateName];
+    const r=regions[selectedStateName];
+    if(r&&!hiddenRegionCats.has(r.category))
+      layer.setStyle({fillColor:r.color,fillOpacity:.28,color:r.color,weight:1.5,opacity:.7});
+    else
+      layer.setStyle({fillColor:'transparent',fillOpacity:0,color:'transparent',weight:0,opacity:0});
+  }
+  selectedStateName=null;
+}
+
+function saveRegions(){
+  localStorage.setItem(REGIONS_KEY,JSON.stringify(regions));
+  localStorage.setItem(REGION_CATS_KEY,JSON.stringify(regionCategories));
+}
+
+// ── Pin rendering ─────────────────────────────────────────────────────────────
+// Polygon point helpers for star/hexagon shapes
+function starPoints(cx,cy,outerR,innerR,points=5){
+  const pts=[];
+  for(let i=0;i<points*2;i++){
+    const r=i%2===0?outerR:innerR;
+    const angle=(Math.PI/points)*i-Math.PI/2;
+    pts.push(`${(cx+r*Math.cos(angle)).toFixed(1)},${(cy+r*Math.sin(angle)).toFixed(1)}`);
+  }
+  return pts.join(' ');
+}
+function hexPoints(cx,cy,r){
+  const pts=[];
+  for(let i=0;i<6;i++){
+    const angle=(Math.PI/3)*i-Math.PI/2;
+    pts.push(`${(cx+r*Math.cos(angle)).toFixed(1)},${(cy+r*Math.sin(angle)).toFixed(1)}`);
+  }
+  return pts.join(' ');
+}
+
+// Each shape defines its own box size and an SVG-content generator.
+// 'teardrop' is the original map-pin silhouette, anchored at its bottom tip.
+// All other shapes are simple centered glyphs, anchored at their center —
+// standard practice for non-pointer map markers.
+const SHAPE_DEFS={
+  teardrop:{w:28,h:36,svg:color=>`<path d="M14 0C6.268 0 0 6.268 0 14c0 9.333 14 22 14 22S28 23.333 28 14C28 6.268 21.732 0 14 0z" fill="${color}"/><circle cx="14" cy="14" r="5" fill="white" opacity="0.9"/>`},
+  circle:{w:22,h:22,svg:color=>`<circle cx="11" cy="11" r="9" fill="${color}" stroke="white" stroke-width="2"/>`},
+  square:{w:20,h:20,svg:color=>`<rect x="2" y="2" width="16" height="16" rx="3" fill="${color}" stroke="white" stroke-width="2"/>`},
+  diamond:{w:22,h:22,svg:color=>`<polygon points="11,2 20,11 11,20 2,11" fill="${color}" stroke="white" stroke-width="2" stroke-linejoin="round"/>`},
+  triangle:{w:22,h:20,svg:color=>`<polygon points="11,2 20,18 2,18" fill="${color}" stroke="white" stroke-width="2" stroke-linejoin="round"/>`},
+  star:{w:24,h:24,svg:color=>`<polygon points="${starPoints(12,12,10,4.2,5)}" fill="${color}" stroke="white" stroke-width="1.5" stroke-linejoin="round"/>`},
+  hexagon:{w:24,h:22,svg:color=>`<polygon points="${hexPoints(12,11,10)}" fill="${color}" stroke="white" stroke-width="2" stroke-linejoin="round"/>`}
+};
+const SHAPE_NAMES=Object.keys(SHAPE_DEFS);
+
+function makeIcon(color, shape='teardrop', glow=false, dx=0, dy=0){
+  const def=SHAPE_DEFS[shape]||SHAPE_DEFS.teardrop;
+  const isTeardrop=(def===SHAPE_DEFS.teardrop);
+  const w=def.w, h=def.h;
+  const anchorX=isTeardrop?14:w/2;
+  const anchorY=isTeardrop?h:h/2;
+  const popupY=isTeardrop?-(h+2):-(h/2+6);
+  const glowStyle=glow?'filter:drop-shadow(0 0 4px white) drop-shadow(0 0 2px white)':'';
+  // Wrap SVG in .pin-wrap div so bounce animation targets the wrapper,
+  // not the outer icon element (which Leaflet uses for positioning)
+  const html=`<div class="pin-wrap" style="width:${w}px;height:${h}px;${glowStyle}"><svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">${def.svg(color)}</svg></div>`;
+  // dx/dy shift the pin a fixed number of screen pixels away from its true
+  // lat/lng, so co-located pins fan out consistently at every zoom level.
+  // iconAnchor moves the icon box in the opposite direction of the desired
+  // shift; popupAnchor is nudged to match so popups stay attached to the
+  // pin the user actually sees rather than the true (hidden) point.
+  return L.divIcon({html,className:'',iconSize:[w,h],iconAnchor:[anchorX-dx,anchorY-dy],popupAnchor:[dx,popupY+dy]});
+}
+
+// Detect pins that sit at (or essentially at) the same coordinates and give
+// each one a small fixed-pixel offset so they fan out instead of stacking
+// exactly on top of each other. Grouping is rounded to ~11m (4 decimal
+// places) so pins geocoded to the same building/address are treated as
+// one cluster, without pulling in genuinely separate nearby locations.
+function computePinOffsets(){
+  const groups={};
+  locations.forEach(l=>{
+    if(l.lat==null||l.lng==null) return;
+    const key=l.lat.toFixed(4)+','+l.lng.toFixed(4);
+    (groups[key]=groups[key]||[]).push(l);
+  });
+  Object.values(groups).forEach(group=>{
+    const n=group.length;
+    if(n<=1){ group.forEach(l=>{l._pinDx=0;l._pinDy=0;}); return; }
+    const radius=n<=2?6:Math.min(14,7+n);
+    group.forEach((l,i)=>{
+      const angle=-Math.PI/2+(2*Math.PI*i)/n;
+      l._pinDx=Math.round(Math.cos(angle)*radius);
+      l._pinDy=Math.round(Math.sin(angle)*radius);
+    });
+  });
+}
+
+let sidebarLocs = [];
+let legendCollapsed = false;
+let navStack = []; // [{type, args}] — history of sidebar views for Esc to navigate back
+let glowingIds   = new Set();
+let bouncingId = null;
+
+// Track which sidebar view is currently active so legend toggles can
+// re-filter without losing the user's context. Modes:
+//   'all'    – full list (renderList)
+//   'state'  – pins inside a selected state/province/country
+//   'radius' – pins inside a selected radius circle
+//   null     – sidebar closed
+let sidebarMode = null;
+let sidebarCtx  = {}; // { stateName, feature } or { sourceLoc } or { parent }
+
+// Apply category + tag filters to a list of locations
+function filterByVisibleCats(list){
+  return list.filter(l=>isLocVisible(l));
+}
+function isLocVisible(l){
+  if(hiddenCats.has(l.category)) return false;
+  // Tag filter
+  if(activeTags.size>0){
+    const tags=l.tags||['N/A'];
+    if(tagMode==='OR'&&!tags.some(t=>activeTags.has(t))) return false;
+    if(tagMode==='AND'&&![...activeTags].every(t=>tags.includes(t))) return false;
+  }
+  // Metric filter
+  if(activeMetric!=='none'&&metricRange[0]!==null&&metricRange[1]!==null){
+    const val=l[activeMetric];
+    if(val===null||val===undefined) return false; // hide if no value for this metric
+    if(val<metricRange[0]||val>metricRange[1]) return false;
+  }
+  return true;
+}
+
+function bouncePin(id){
+  stopBounce(); // always clear previous first
+  bouncingId=id;
+  if(!id) return;
+  const marker=markers[id];
+  if(marker&&marker._icon) marker._icon.classList.add('pin-bouncing');
+}
+function stopBounce(){
+  if(bouncingId){
+    const marker=markers[bouncingId];
+    if(marker&&marker._icon) marker._icon.classList.remove('pin-bouncing');
+    bouncingId=null;
+  }
+  // Belt-and-suspenders: clear any stale bounce classes from all marker icons
+  document.querySelectorAll('.pin-bouncing').forEach(el=>el.classList.remove('pin-bouncing'));
+}
+
+function setGlow(ids){
+  // Clear previous glow
+  glowingIds.forEach(id=>{
+    const l=locations.find(l=>l.id===id);
+    if(l&&markers[id]){
+      const color=catColor(l.category);
+      markers[id].setIcon(makeIcon(color,catShape(l.category),false,l._pinDx||0,l._pinDy||0));
+    }
+  });
+  glowingIds=new Set(ids);
+  // Apply new glow
+  glowingIds.forEach(id=>{
+    const l=locations.find(l=>l.id===id);
+    if(l&&markers[id]){
+      const color=catColor(l.category);
+      markers[id].setIcon(makeIcon(color,catShape(l.category),true,l._pinDx||0,l._pinDy||0));
+    }
+  });
+}
+
+function renderMarker(loc){
+  if(markers[loc.id]) markers[loc.id].remove();
+  if(!loc.lat||!loc.lng) return;
+  const color=catColor(loc.category);
+  const shape=catShape(loc.category);
+  const m=L.marker([loc.lat,loc.lng],{icon:makeIcon(color,shape,false,loc._pinDx||0,loc._pinDy||0)}).addTo(map);
+  const rawUrl=loc.website||'';
+  const safeUrl=rawUrl&&!rawUrl.match(/^https?:\/\//)? 'https://'+rawUrl : rawUrl;
+  const web=safeUrl?`<a href="${safeUrl}" target="_blank" class="popup-link">${rawUrl}</a>`:'<span style="font-size:12px;color:#6b7280">No website</span>';
+  const finRow=(label,val)=>`<div style="display:flex;justify-content:space-between;font-size:12px;padding:4px 6px;border:1px solid #2a2f3e;border-radius:4px;margin-bottom:3px">
+    <span style="color:#6b7280">${label}</span>
+    <span style="color:#c5c9d6">${val!==null&&val!==undefined?formatCurrency(val):'N/A'}</span>
+  </div>`;
+  const hasFinancials=loc.coRevenue!==null||loc.coEbitda!==null||loc.locRevenue!==null||loc.locEbitda!==null;
+  const financialsHtml=hasFinancials?`
+    <div style="margin-top:8px">
+      ${finRow('Company Revenue',loc.coRevenue)}
+      ${finRow('Company EBITDA',loc.coEbitda)}
+      ${finRow('Location Revenue',loc.locRevenue)}
+      ${finRow('Location EBITDA',loc.locEbitda)}
+    </div>`:'';
+  const notesHtml=loc.notes?`<div style="margin-top:6px;border-top:1px solid #2a2f3e;padding:6px 0;font-size:11px;color:#9ca3af"><span style="color:#6b7280">Notes: </span>${loc.notes}</div>`:'';
+  const cs=`background:${color}22;color:${color};`;
+  const parentCount=loc.parent?locations.filter(l=>l.parent===loc.parent).length:0;
+  const parentBtn=loc.parent&&parentCount>1?`<div style="margin-top:10px;border-top:1px solid #2a2f3e;padding-top:8px">
+    <button onclick="showCompanyLocations('${loc.parent.replace(/'/g,"\\'")}',true)"
+      style="width:100%;background:#1e2535;border:1px solid #2a3045;color:#c5c9d6;padding:7px 10px;border-radius:6px;font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:space-between;transition:background .15s"
+      onmouseover="this.style.background='#252d40'" onmouseout="this.style.background='#1e2535'">
+      <span>All ${loc.parent} locations</span>
+      <span style="background:#2a3045;color:#9ca3af;font-size:10px;padding:2px 7px;border-radius:10px;font-weight:600">${parentCount}</span>
+    </button>
+    </div>`:'';
+  m.bindPopup(`<div style="min-width:200px">
+    <div class="popup-name">${loc.name}</div>
+    ${loc.parent?`<div style="font-size:11px;color:#6b7280;margin-bottom:4px">${loc.parent}</div>`:''}
+    <div class="popup-addr">${loc.address}</div>
+    <span class="popup-cat" style="${cs}">${loc.category||'Uncategorized'}</span>
+    ${loc.tags&&loc.tags.length&&!(loc.tags.length===1&&loc.tags[0]==='N/A')?`<span style="margin-left:4px">${loc.tags.map(t=>`<span style="font-size:10px;padding:2px 6px;border-radius:4px;background:#1e2535;color:#9ca3af;border:1px solid #2a3045;margin-left:2px">${t}</span>`).join('')}</span>`:''}
+    <br>${web}
+    ${financialsHtml}${notesHtml}${parentBtn}</div>`);
+  markers[loc.id]=m;
+  applyVisibility();
+}
+
+// Haversine distance in miles between two lat/lng points
+function distanceMiles(lat1,lng1,lat2,lng2){
+  const R=3958.8; // Earth radius miles
+  const dLat=(lat2-lat1)*Math.PI/180;
+  const dLng=(lng2-lng1)*Math.PI/180;
+  const a=Math.sin(dLat/2)**2+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)**2;
+  return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+}
+
+function renderCircle(loc){
+  if(circleLayerMap[loc.id]){circleLayerMap[loc.id].remove();delete circleLayerMap[loc.id];}
+  if(!loc.showRadius||!loc.lat||!loc.lng) return;
+  const color=catColor(loc.category);
+  const radiusMeters=radiusMiles*1609.34;
+  const circle=L.circle([loc.lat,loc.lng],{
+    radius:radiusMeters,
+    color:color,
+    fillColor:color,
+    fillOpacity:0.08,
+    weight:1.5,
+    opacity:0.5,
+    interactive:true,
+    bubblingMouseEvents:false,
+    pane:'circlePane'
+  }).addTo(map);
+  circle.on('mouseover',function(){
+    if(!circlesVisible) return;
+    this.setStyle({fillOpacity:0.18,cursor:'pointer'});
+  });
+  circle.on('mouseout',function(){this.setStyle({fillOpacity:circlesVisible?0.08:0});});
+  circle.on('click',(e)=>{
+    e.originalEvent._handled=true;
+    showPinsInRadius(loc);
+  });
+  circleLayerMap[loc.id]=circle;
+}
+
+function showPinsInRadius(sourceLoc, pushToStack=true){
+  if(pushToStack) navStack.push({type:'radius', sourceLoc});
+  // Clear any active state selection
+  clearStateSelection();
+
+  // Record context so legend toggles can re-filter live
+  if(pushToStack){
+    if(sidebarMode && sidebarMode!=='radius') navStack.push({mode:sidebarMode, ctx:{...sidebarCtx}, selectedState:selectedStateName});
+    else navStack=[];
+  }
+  sidebarMode='radius';
+  sidebarCtx={sourceLoc};
+
+  document.getElementById('sidebar').classList.add('open');
+  showEscBtn();
+  renderSidebarRadius();
+}
+
+function renderSidebarRadius(){
+  const {sourceLoc}=sidebarCtx;
+  if(!sourceLoc) return;
+
+  const allInside=locations.filter(l=>{
+    if(!l.lat||!l.lng) return false;
+    return distanceMiles(sourceLoc.lat,sourceLoc.lng,l.lat,l.lng)<=radiusMiles;
+  });
+  const inside=filterByVisibleCats(allInside);
+
+  setGlow(inside.map(l=>l.id));
+  sidebarLocs=[...inside];
+
+  const catOrder=sortedCategories().map(c=>c.name);
+  const sorted=[...inside].sort((a,b)=>{
+    const ai=catOrder.indexOf(a.category),bi=catOrder.indexOf(b.category);
+    if(ai!==bi) return (ai<0?999:ai)-(bi<0?999:bi);
+    return a.name.localeCompare(b.name);
+  });
+  const items=sorted.map(l=>{
+    const dist=distanceMiles(sourceLoc.lat,sourceLoc.lng,l.lat,l.lng).toFixed(1);
+    const c=catColor(l.category);
+    return `<li class="pin-item"
+      onmouseenter="bouncePin('${l.id}')"
+      onmouseleave="stopBounce()"
+      onclick="openPopupInPlace('${l.id}')"
+      style="flex-direction:column;align-items:flex-start;gap:2px">
+      <div style="display:flex;align-items:center;gap:8px;width:100%">
+        <span class="pin-dot" style="background:${c};flex-shrink:0"></span>
+        <span class="pin-name" style="flex:1">${l.name}</span>
+        <span class="pin-cat" style="color:#9ca3af">${dist} mi</span>
+      </div>
+      <div style="font-size:11px;color:#6b7280;padding-left:18px">${l.address}</div>
+    </li>`;
+  }).join('');
+
+  document.getElementById('sidebar-title').textContent=`Within ${radiusMiles} mi`;
+  document.getElementById('sidebar-body').innerHTML=`
+    <div style="font-size:12px;color:#6b7280;margin-bottom:4px">
+      From: <strong style="color:#c5c9d6">${sourceLoc.name}</strong>
+    </div>
+    <div style="font-size:12px;color:#6b7280;margin-bottom:10px">${inside.length} location${inside.length!==1?'s':''} found</div>
+    <ul id="pin-list">${items||'<li style="color:#6b7280;font-size:13px;padding:10px">No locations in range.</li>'}</ul>
+    <div style="margin-top:12px">
+      <button class="btn btn-secondary" style="font-size:11px;padding:4px 10px" onclick="navStack=[];setGlow([]);renderList()">← All locations</button>
+    </div>`;
+}
+
+// Open popup on map without moving or closing sidebar
+function openPopupInPlace(id){
+  stopBounce();
+  const loc=locations.find(l=>l.id===id);
+  if(!loc||!markers[id]) return;
+  markers[id].openPopup();
+}
+
+function applyCircleVisibility(){
+  Object.values(circleLayerMap).forEach(c=>c.setStyle({opacity:circlesVisible?0.5:0,fillOpacity:circlesVisible?0.08:0}));
+}
+
+function applyVisibility(){
+  locations.forEach(l=>{
+    const m=markers[l.id];
+    if(m){
+      const hiddenMarker=!isLocVisible(l);
+      m.setOpacity(hiddenMarker?0:1);
+      if(m._icon) m._icon.style.pointerEvents=hiddenMarker?'none':'auto';
+    }
+    const c=circleLayerMap[l.id];
+    if(c){
+      const hidden=!circlesVisible||!isLocVisible(l);
+      c.setStyle({
+        opacity:hidden?0:0.5,
+        fillOpacity:hidden?0:0.08
+      });
+      // Also disable mouse interaction on the underlying SVG path so a
+      // hidden circle does not intercept clicks/hovers meant for the
+      // state layer beneath it. Leaflet sets pointer-events on the path
+      // itself (overriding any pane-level CSS), so we set it per-element.
+      if(c._path) c._path.style.pointerEvents=hidden?'none':'auto';
+    }
+  });
+  // Belt-and-suspenders: also toggle the pane in case any individual
+  // circle path doesn't exist yet at the moment this runs.
+  const pane=map.getPane('circlePane');
+  if(pane) pane.style.pointerEvents=circlesVisible?'auto':'none';
+}
+
+let radiusTimeout;
+function onRadiusInput(){
+  clearTimeout(radiusTimeout);
+  radiusTimeout = setTimeout(() => {
+    const val=parseFloat(document.getElementById('radius-input').value)||100;
+    radiusMiles=val;
+    localStorage.setItem(RADIUS_KEY,val);
+    
+    // Re-render all circles with new radius safely after user stops typing
+    Object.values(circleLayerMap).forEach(c=>c.remove());
+    circleLayerMap={};
+    locations.forEach(renderCircle);
+    applyVisibility();
+  }, 300); // Waits 300ms after the last keystroke
+}
+
+function toggleCircles(){
+  circlesVisible=!circlesVisible;
+  const btn=document.getElementById('radius-toggle');
+  btn.style.opacity=circlesVisible?'1':'0.4';
+  applyVisibility();
+}
+
+function renderAll(){
+  // Clear old circles, glow, and state selection
+  Object.values(circleLayerMap).forEach(c=>c.remove());
+  circleLayerMap={};glowingIds=new Set();clearStateSelection();stopBounce();navStack=[];sidebarMode=null;sidebarCtx={};activeTags=new Set();activeMetric='none';metricRange=[null,null];const ms=document.getElementById('metric-select');if(ms)ms.value='none';const mw=document.getElementById('metric-slider-wrap');if(mw)mw.style.display='none';
+  computePinOffsets();
+  locations.forEach(l=>{renderMarker(l);renderCircle(l);});
+  updateMetricDropdown();
+  renderLegend();
+  const sb=document.getElementById('sidebar');
+  if(sb.classList.contains('open')&&document.getElementById('sidebar-title').textContent==='All Locations') renderList();
+}
+
+// Sort categories: positive order first (asc), then alphabetical (no order), then negatives last (desc by absolute value)
+function sortedCategories(){
+  const pos=categories.filter(c=>c.order!==null&&c.order!==undefined&&c.order>=0);
+  const none=categories.filter(c=>c.order===null||c.order===undefined);
+  const neg=categories.filter(c=>c.order!==null&&c.order!==undefined&&c.order<0);
+  pos.sort((a,b)=>a.order-b.order);
+  none.sort((a,b)=>a.name.localeCompare(b.name));
+  neg.sort((a,b)=>a.order-b.order); // -1 before -2 before -3
+  return [...pos,...none,...neg];
+}
+
+// Small inline SVG glyph for legend rows, matching a category's pin shape
+function legendGlyph(shape, color){
+  const def=SHAPE_DEFS[shape]||SHAPE_DEFS.teardrop;
+  const isTeardrop=(def===SHAPE_DEFS.teardrop);
+  const inner=isTeardrop
+    ? `<circle cx="7" cy="7" r="6" fill="${color}"/>`
+    : `<svg x="1" y="1" width="12" height="12" viewBox="0 0 ${def.w} ${def.h}">${def.svg(color)}</svg>`;
+  return `<svg width="14" height="14" viewBox="0 0 14 14" style="flex-shrink:0">${inner}</svg>`;
+}
+
+function renderLegend(){
+  const el=document.getElementById('legend');
+  let html='';
+  const hasPins=locations.length>0;
+  const hasRegions=regionCategories.length>0;
+  if(!hasPins&&!hasRegions){el.style.display='none';return;}
+  el.style.display='block';
+  // Toggle button always shown
+  html+=`<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:${legendCollapsed?'0':'6px'}">
+    <span style="font-size:10px;font-weight:600;color:#6b7280;letter-spacing:.6px;text-transform:uppercase">Legend</span>
+    <button onclick="toggleLegend()" style="background:none;border:none;cursor:pointer;color:#9ca3af;font-size:11px;padding:0 0 0 8px;line-height:1">${legendCollapsed?'▲ expand':'▼ collapse'}</button>
+  </div>`;
+  if(legendCollapsed){el.innerHTML=html;return;}
+  if(hasPins){
+    const allHidden=sortedCategories().filter(c=>locations.find(l=>l.category===c.name)).every(c=>hiddenCats.has(c.name));
+    html+=`<div class="legend-section-title" style="display:flex;align-items:center;justify-content:space-between">
+      <span>Locations</span>
+      <span onclick="${allHidden?'showAllCats()':'hideAllCats()'}" style="font-size:10px;color:#6b7280;cursor:pointer;font-weight:400;letter-spacing:0;text-transform:none">${allHidden?'show all':'hide all'}</span>
+    </div><div class="legend-scroll-loc">`;
+    sortedCategories().forEach(c=>{
+      const count=locations.filter(l=>l.category===c.name).length;
+      if(!count) return;
+      const muted=hiddenCats.has(c.name)?'muted':'';
+      html+=`<div class="legend-item ${muted}" onclick="toggleCat('${c.name}')">${legendGlyph(c.shape||'teardrop',c.color)}${c.name}<span style="color:#9ca3af;margin-left:3px">(${count})</span></div>`;
+    });
+    html+=`</div>`;
+  }
+  if(hasRegions){
+    if(hasPins) html+=`<hr class="legend-divider">`;
+    html+=`<div class="legend-section-title">Regions</div><div class="legend-scroll-reg">`;
+    regionCategories.forEach(c=>{
+      const count=Object.values(regions).filter(r=>r.category===c.name).length;
+      const muted=hiddenRegionCats.has(c.name)?'muted':'';
+      html+=`<div class="legend-item ${muted}" onclick="toggleRegionCat('${c.name}')"><span class="legend-swatch" style="background:${c.color}44;border-color:${c.color}"></span>${c.name}<span style="color:#9ca3af;margin-left:3px">(${count})</span></div>`;
+    });
+    html+=`</div>`;
+  }
+  // Tags section
+  const allTags=[...new Set(locations.flatMap(l=>l.tags||['N/A']))].sort((a,b)=>a==='N/A'?1:b==='N/A'?-1:a.localeCompare(b));
+  if(allTags.length>1||(allTags.length===1&&allTags[0]!=='N/A')){
+    if(hasPins||hasRegions) html+=`<hr class="legend-divider">`;
+    html+=`<div class="legend-section-title" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+      <span>Tags</span>
+      <button onclick="toggleTagMode()" style="background:#1e2535;border:1px solid #2a3045;color:#9ca3af;font-size:10px;padding:1px 7px;border-radius:4px;cursor:pointer;font-weight:600;letter-spacing:.3px">${tagMode}</button>
+    </div>`;
+    if(activeTags.size>0){
+      html+=`<div style="font-size:10px;color:#6b7280;margin-bottom:5px;cursor:pointer" onclick="clearTags()">✕ clear filters</div>`;
+    }
+    html+=`<div class="legend-scroll-tag">`;
+    allTags.forEach(tag=>{
+      const active=activeTags.has(tag);
+      const count=locations.filter(l=>(l.tags||['N/A']).includes(tag)).length;
+      html+=`<div class="legend-item ${active?'':'muted'}" onclick="toggleTag('${tag}')" style="gap:6px">
+        <span style="width:10px;height:10px;border-radius:2px;flex-shrink:0;border:1px solid ${active?'#c5c9d6':'#2a3045'};background:${active?'#c5c9d6':'transparent'};display:inline-block"></span>
+        ${tag}<span style="color:#9ca3af;margin-left:3px">(${count})</span>
+      </div>`;
+    });
+    html+=`</div>`;
+  }
+
+  // Save scroll positions before re-render
+  const inner=document.getElementById('legend-inner');
+  const scrolls={};
+  ['legend-scroll-loc','legend-scroll-reg','legend-scroll-tag'].forEach(cls=>{
+    const el=inner.querySelector('.'+cls);
+    if(el) scrolls[cls]=el.scrollTop;
+  });
+  inner.innerHTML=html;
+  // Restore scroll positions after re-render
+  ['legend-scroll-loc','legend-scroll-reg','legend-scroll-tag'].forEach(cls=>{
+    const el=inner.querySelector('.'+cls);
+    if(el&&scrolls[cls]) el.scrollTop=scrolls[cls];
+  });
+}
+
+// Re-render the sidebar list with current filters applied, preserving
+// whichever mode is active (all / state / radius). Called whenever the
+// legend's visible-category set changes.
+function refreshSidebar(){
+  if(sidebarMode==='state')       renderSidebarState();
+  else if(sidebarMode==='radius') renderSidebarRadius();
+  else if(sidebarMode==='all')    renderList();
+}
+
+function toggleCat(cat){
+  hiddenCats.has(cat)?hiddenCats.delete(cat):hiddenCats.add(cat);
+  applyVisibility();renderLegend();refreshSidebar();
+}
+function hideAllCats(){
+  categories.forEach(c=>hiddenCats.add(c.name));
+  applyVisibility();renderLegend();refreshSidebar();
+}
+function showAllCats(){
+  hiddenCats.clear();
+  applyVisibility();renderLegend();refreshSidebar();
+}
+function toggleRegionCat(cat){
+  hiddenRegionCats.has(cat)?hiddenRegionCats.delete(cat):hiddenRegionCats.add(cat);
+  renderStateLayer();
+}
+
+// ── CRUD ──────────────────────────────────────────────────────────────────────
+function save(){
+  localStorage.setItem(DATA_KEY,JSON.stringify(locations));
+  localStorage.setItem(CAT_KEY,JSON.stringify(categories));
+}
+
+function openSidebar(mode){
+  document.getElementById('sidebar').classList.add('open');
+  if(mode==='list') {
+    renderList();
+  }
+}
+
+function closeSidebar(){
+  document.getElementById('sidebar').classList.remove('open');
+  hideEscBtn(); // Keeps the header clean when hidden
+  sidebarMode=null;
+  sidebarCtx={};
+}
+
+function renderList() {
+  // Record sidebar state so legend toggles can re-filter live
+  sidebarMode='all';
+  sidebarCtx={};
+
+  // Apply legend visibility filter
+  const visible=filterByVisibleCats(locations);
+  sidebarLocs=[...visible];
+  document.getElementById('sidebar-title').textContent = 'All Locations';
+
+  // Ensure the top left Esc button is visible if desired, or hidden 
+  showEscBtn(); 
+
+  // Group locations by category in sorted order, then alphabetically within each group
+  const catOrder = sortedCategories().map(c => c.name);
+  const sorted = [...visible].sort((a, b) => {
+    const ai = catOrder.indexOf(a.category); const bi = catOrder.indexOf(b.category);
+    if (ai !== bi) return (ai < 0 ? 999 : ai) - (bi < 0 ? 999 : bi);
+    return a.name.localeCompare(b.name);
+  });
+
+  const items=sorted.map(l=>`<li class="pin-item"
+    onmouseenter="bouncePin('${l.id}')"
+    onmouseleave="stopBounce()"
+    onclick="flyTo('${l.id}')"
+    style="flex-direction:column;align-items:flex-start;gap:2px">
+    <div style="display:flex;align-items:center;gap:8px;width:100%">
+      <span class="pin-dot" style="background:${catColor(l.category)};flex-shrink:0"></span>
+      <span class="pin-name" style="flex:1">${l.name}</span>
+      <span class="pin-cat">${l.category||''}</span>
+    </div>
+    <div style="font-size:11px;color:#6b7280;padding-left:18px">${l.address}</div>
+  </li>`).join('');
+
+  document.getElementById('sidebar-body').innerHTML=`<div style="font-size:12px;color:#6b7280;margin-bottom:8px">${visible.length} location${visible.length!==1?'s':''}</div>
+    <ul id="pin-list">${items||'<li style="color:#6b7280;font-size:13px;padding:10px">No locations yet.</li>'}</ul>`;
+}
+
+function flyTo(id){
+  stopBounce();
+  openPopupInPlace(id);
+}
+
+// ── Utilities ─────────────────────────────────────────────────────────────────
+function findCol(fields,candidates){
+  if(!fields) return null;
+  for(const c of candidates){const f=fields.find(f=>f.toLowerCase().includes(c));if(f)return f;}
+  return null;
+}
+
+let toastTimer;
+function toast(msg,type){
+  const t=document.getElementById('toast');t.textContent=msg;
+  t.className='show'+(type==='error'?' error':'');
+  clearTimeout(toastTimer);toastTimer=setTimeout(()=>{t.className='';},3500);
+}
+
+// ── Google Sheet sync (fetches as XLSX, all tabs in one request) ─────────────
+function initUrlBar(){
+  const saved=localStorage.getItem(SHEET_URL_KEY)||'';
+  const input=document.getElementById('sheet-url-input');
+  if(saved){
+    input.value=saved;
+    input.type='password'; // hidden by default when populated
+    // eye icon already set by default in HTML
+  }
+  document.getElementById('sync-btn').style.display=saved?'flex':'none';
+}
+
+function onUrlInput(){
+  const val=document.getElementById('sheet-url-input').value.trim();
+  document.getElementById('sync-btn').style.display=val?'flex':'none';
+  localStorage.setItem(SHEET_URL_KEY,val);
+}
+
+function toggleUrlVisibility(){
+  const input=document.getElementById('sheet-url-input');
+  const icon=document.getElementById('eye-icon');
+  if(input.type==='password'){
+    input.type='text';
+    // URL now visible — show open eye
+    icon.innerHTML='<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>';
+  } else {
+    input.type='password';
+    // URL now hidden — show eye-off
+    icon.innerHTML='<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/>';
+  }
+}
+
+function sheetIdFrom(url){
+  const m=url.match(/\/spreadsheets\/d\/([a-zA-Z0-9_-]+)/);
+  return m?m[1]:null;
+}
+
+// Find a sheet by partial tab name match
+function findSheet(wb, hints){
+  for(const h of hints){
+    const name=wb.SheetNames.find(n=>n.toLowerCase()===h.toLowerCase());
+    if(name){console.log('findSheet matched exact:',name,'for hint:',h);return wb.Sheets[name];}
+  }
+  // fallback: partial match
+  for(const h of hints){
+    const name=wb.SheetNames.find(n=>n.toLowerCase().includes(h.toLowerCase()));
+    if(name){console.log('findSheet matched partial:',name,'for hint:',h);return wb.Sheets[name];}
+  }
+  return null;
+}
+
+// sheet_to_json but returns plain array of arrays (no header magic)
+function sheetRows(sheet){
+  return XLSX.utils.sheet_to_json(sheet,{header:1,defval:''});
+}
+
+async function syncFromSheet(){
+  const rawUrl=(document.getElementById('sheet-url-input').value||localStorage.getItem(SHEET_URL_KEY)||'').trim();
+  if(!rawUrl){toast('No Google Sheet URL set — go to Settings','error');return;}
+
+  const sheetId=sheetIdFrom(rawUrl);
+  if(!sheetId){toast('Could not parse Sheet ID from URL — paste the URL from your browser address bar','error');return;}
+
+  // Reset Excel upload indicator if present
+  const xlsxLabel=document.querySelector('#xlsx-upload')?.closest('label');
+  if(xlsxLabel){xlsxLabel.style.borderColor='';xlsxLabel.style.color='';xlsxLabel.childNodes[0].textContent='⬆ Excel';}
+  const btn=document.getElementById('sync-btn');
+  btn.textContent='⏳ Syncing…';btn.disabled=true;
+
+  try{
+    // Fetch entire workbook as XLSX in one request
+    const xlsxUrl=`https://docs.google.com/spreadsheets/d/${sheetId}/export?format=xlsx`;
+    const resp=await fetch(xlsxUrl);
+    if(!resp.ok) throw new Error('HTTP '+resp.status+' — make sure the sheet is shared as "Anyone with the link can view"');
+    const buf=await resp.arrayBuffer();
+    const wb=XLSX.read(buf,{type:'array',cellStyles:true});
+    const {added,geocoded,failed}=await parseAndLoadWorkbook(wb);
+    const parts=[`Synced ${added} locations`];
+    if(geocoded) parts.push(`geocoded ${geocoded}`);
+    if(failed) parts.push(`${failed} failed`);
+    toast(parts.join(', '),failed?'error':null);
+
+  }catch(err){
+    toast('Sync failed: '+err.message,'error');
+    console.error('Sheet sync error:',err);
+  }finally{
+    btn.textContent='🔄 Sync';btn.disabled=false;
+  }
+}
+
+// ── Shared workbook parser — used by both Sync and Excel Upload ───────────────
+async function parseAndLoadWorkbook(wb){
+  // ── Categories tab ─────────────────────────────────────────────────────
+  const catSheet=findSheet(wb,['locations','categories','category','colors','colours','legend']);
+  if(catSheet){
+    const rows=sheetRows(catSheet);
+    if(rows.length>1){
+      const newCats=[];
+      for(let i=1;i<rows.length;i++){
+        const r=rows[i];
+        const name=String(r[0]||'').trim();
+        if(!name) continue;
+        const rawHex=r[1]!==undefined&&r[1]!==null?String(r[1]).trim():'';
+        const hex=normaliseHex(rawHex);
+        const orderRaw=r[2]!==undefined&&r[2]!==null?String(r[2]).trim():'';
+        const order=orderRaw!==''&&!isNaN(orderRaw)?parseInt(orderRaw):null;
+        const shapeRaw=r[3]!==undefined&&r[3]!==null?String(r[3]).trim().toLowerCase():'';
+        const shape=SHAPE_NAMES.includes(shapeRaw)?shapeRaw:'teardrop';
+        newCats.push({name,color:hex||FALLBACK_COLORS[newCats.length%FALLBACK_COLORS.length],order,shape});
+      }
+      // Always overwrite — even empty means "clear all categories"
+      const seen=new Set();
+      categories=newCats.filter(c=>{if(seen.has(c.name))return false;seen.add(c.name);return true;});
+      save();
+    }
+  }
+
+  // ── Regions tab ────────────────────────────────────────────────────────
+  const regSheet=findSheet(wb,['regions','region','states','state','territory','shade']);
+  if(regSheet){
+    const rows=sheetRows(regSheet);
+    if(rows.length>1){
+      const headers=rows[0].map(h=>String(h).toLowerCase());
+      const stateIdx=headers.findIndex(h=>h.includes('state')||h.includes('region')||h.includes('name'));
+      const hexIdx  =headers.findIndex(h=>h.includes('hex')||h.includes('color')||h.includes('colour'));
+      const catIdx  =headers.findIndex(h=>h.includes('cat')||h.includes('label')||h.includes('type')||h.includes('group'));
+      if(stateIdx>=0){
+        const newRegions={};const newRegionCats={};
+        for(let i=1;i<rows.length;i++){
+          const r=rows[i];
+          const stateName=normState(String(r[stateIdx]||'').trim());
+          if(!stateName) continue;
+          const hex=hexIdx>=0?normaliseHex(r[hexIdx]):null;
+          if(!hex) continue;
+          let catName=catIdx>=0?String(r[catIdx]||'').trim():'';
+          if(!catName){
+            const existing=Object.entries(newRegionCats).find(([,c])=>c===hex);
+            catName=existing?existing[0]:'Region '+(Object.keys(newRegionCats).length+1);
+          }
+          newRegions[stateName]={category:catName,color:hex};
+          if(!newRegionCats[catName]) newRegionCats[catName]=hex;
+        }
+        // Always overwrite — even empty means "clear all regions"
+        regions=newRegions;
+        regionCategories=Object.entries(newRegionCats).map(([name,color])=>({name,color}));
+        saveRegions();
+        if(statesGeoJSON) renderStateLayer();
+      }
+    }
+  }
+
+  // ── Locations tab ──────────────────────────────────────────────────────
+  const locSheet=findSheet(wb,['data','addresses','address','company','site','place']);
+  if(!locSheet){toast('Could not find Locations tab — name it "Locations"','error');return {added:0,geocoded:0,failed:0};}
+  const rows=sheetRows(locSheet);
+  if(rows.length<2){toast('Locations tab appears empty','error');return {added:0,geocoded:0,failed:0};}
+
+  // Fixed column order: Name, Parent, Address, Website, Category, Lat, Lng, Radius
+  const nameIdx=0, parentIdx=1, addrIdx=2, webIdx=3, catIdx=4, latIdx=5, lngIdx=6;
+
+  Object.values(markers).forEach(m=>m.remove());
+  markers={};locations=[];
+
+  let added=0,geocoded=0,failed=0;
+  for(let i=1;i<rows.length;i++){
+    const row=rows[i];
+    const name=String(row[nameIdx]||'').trim();
+    const parent=String(row[parentIdx]||'').trim();
+    const addr=String(row[addrIdx]||'').trim();
+    if(!name||!addr) continue;
+    let lat=latIdx>=0?parseFloat(row[latIdx]):NaN;
+    let lng=lngIdx>=0?parseFloat(row[lngIdx]):NaN;
+    if(isNaN(lat)||isNaN(lng)){
+      try{
+        const res=await geocodeAddr(addr);
+        if(res){lat=res.lat;lng=res.lng;geocoded++;}
+        else{lat=null;lng=null;failed++;}
+        await new Promise(r=>setTimeout(r,1100));
+      }catch{lat=null;lng=null;failed++;}
+    }
+    const cat=String(row[catIdx]||'').trim();
+    if(cat&&!categories.find(c=>c.name===cat))
+      categories.push({name:cat,color:FALLBACK_COLORS[categories.length%FALLBACK_COLORS.length],shape:'teardrop'});
+    const showRadius=String(row[7]||'').trim()==='1';
+    const rawTags=row[8]!==undefined&&row[8]!==null?String(row[8]).trim():'';
+    const tags=rawTags?rawTags.split(',').map(t=>t.trim()).filter(Boolean):['N/A'];
+    // Columns J-N: financial metrics + notes (raw numbers from SheetJS)
+    const parseNum=v=>{ const n=parseFloat(v); return isNaN(n)?null:n; };
+    const coRevenue =parseNum(row[9]);
+    const coEbitda  =parseNum(row[10]);
+    const locRevenue=parseNum(row[11]);
+    const locEbitda =parseNum(row[12]);
+    const notes     =row[13]!==undefined&&row[13]!==null?String(row[13]).trim():'';
+    locations.push({
+      id:Date.now().toString(36)+Math.random().toString(36).slice(2),
+      name,parent,address:addr,
+      website:webIdx>=0?String(row[webIdx]||'').trim():'',
+      category:cat||categories[0]?.name||'Uncategorized',
+      lat:lat||null,lng:lng||null,
+      showRadius,tags,
+      coRevenue,coEbitda,locRevenue,locEbitda,notes
+    });
+    added++;
+  }
+  const seenCats=new Set();
+  categories=categories.filter(c=>{
+    const key=c.name.toLowerCase().trim();
+    if(seenCats.has(key)) return false;
+    seenCats.add(key);return true;
+  });
+  save();renderAll();
+  return {added,geocoded,failed};
+}
+
+// ── Excel file upload handler ─────────────────────────────────────────────────
+async function handleXlsxUpload(e){
+  const file=e.target.files[0];
+  if(!file) return;
+  const label=e.target.closest('label');
+  const origText=label.childNodes[0].textContent.trim();
+  label.childNodes[0].textContent='⏳ Loading…';
+  try{
+    const buf=await file.arrayBuffer();
+    const wb=XLSX.read(buf,{type:'array',cellStyles:true});
+    const {added,geocoded,failed}=await parseAndLoadWorkbook(wb);
+    const hasSavedUrl=!!localStorage.getItem(SHEET_URL_KEY);
+    const parts=[`Loaded ${added} locations from Excel${hasSavedUrl?' — hit Sync to revert to live data':''}`];
+    if(geocoded) parts.push(`geocoded ${geocoded}`);
+    if(failed) parts.push(`${failed} failed`);
+    toast(parts.join(', '),failed?'error':null);
+  }catch(err){
+    toast('Upload failed: '+err.message,'error');
+    console.error('Excel upload error:',err);
+  }finally{
+    label.childNodes[0].textContent='✓ Excel';
+    label.style.borderColor='#22c55e';
+    label.style.color='#22c55e';
+    e.target.value='';
+  }
+}
+
+
+
+// Init radius input
+document.getElementById('radius-input').value=radiusMiles;
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape'){
+    if(selectedStateName||glowingIds.size) escapeSelection();
+    else closeSidebar();
+  }
+});
+renderAll();
+initUrlBar();
+
+function showCompanyLocations(parent, pushToStack=true){
+  // Only push if drilling deeper from state/radius into company
+  if(pushToStack){
+    if(sidebarMode && sidebarMode!=='company') navStack.push({mode:sidebarMode, ctx:{...sidebarCtx}, selectedState:selectedStateName});
+    else navStack=[];
+  }
+  // Visually reset state highlight (but keep selectedStateName in stack for back-nav)
+  if(selectedStateName&&stateLayerMap[selectedStateName]){
+    const layer=stateLayerMap[selectedStateName];
+    const r=regions[selectedStateName];
+    if(r&&!hiddenRegionCats.has(r.category))
+      layer.setStyle({fillColor:r.color,fillOpacity:.28,color:r.color,weight:1.5,opacity:.7});
+    else
+      layer.setStyle({fillColor:'transparent',fillOpacity:0,color:'transparent',weight:0,opacity:0});
+    selectedStateName=null;
+  }
+  const inside=locations.filter(l=>l.parent===parent);
+  if(!inside.length) return;
+  setGlow(inside.map(l=>l.id));
+  sidebarLocs=[...inside];
+  const catOrder=sortedCategories().map(c=>c.name);
+  const sorted=[...inside].sort((a,b)=>{
+    const ai=catOrder.indexOf(a.category),bi=catOrder.indexOf(b.category);
+    if(ai!==bi) return (ai<0?999:ai)-(bi<0?999:bi);
+    return a.name.localeCompare(b.name);
+  });
+  const items=sorted.map(l=>{
+    const c=catColor(l.category);
+    return `<li class="pin-item"
+      onmouseenter="bouncePin('${l.id}')"
+      onmouseleave="stopBounce()"
+      onclick="openPopupInPlace('${l.id}')"
+      style="flex-direction:column;align-items:flex-start;gap:2px">
+      <div style="display:flex;align-items:center;gap:8px;width:100%">
+        <span class="pin-dot" style="background:${c};flex-shrink:0"></span>
+        <span class="pin-name" style="flex:1">${l.name}</span>
+        <span class="pin-cat">${l.category||''}</span>
+      </div>
+      <div style="font-size:11px;color:#6b7280;padding-left:18px">${l.address}</div>
+    </li>`;
+  }).join('');
+  sidebarMode='company';
+  sidebarCtx={parent};
+  document.getElementById('sidebar').classList.add('open');
+  showEscBtn();
+  document.getElementById('sidebar-title').textContent=parent;
+  document.getElementById('sidebar-body').innerHTML=`
+    <div style="font-size:12px;color:#6b7280;margin-bottom:10px">${inside.length} location${inside.length!==1?'s':''}</div>
+    <ul id="pin-list">${items}</ul>
+    <div style="margin-top:12px">
+      <button class="btn btn-secondary" style="font-size:11px;padding:4px 10px" onclick="navStack=[];clearStateSelection();setGlow([]);renderList()">← All locations</button>
+    </div>`;
+}
+
+const METRIC_LABELS={coRevenue:'Company Revenue',coEbitda:'Company EBITDA',locRevenue:'Location Revenue',locEbitda:'Location EBITDA'};
+
+function formatCurrency(n){
+  if(n===null||n===undefined) return 'N/A';
+  if(Math.abs(n)>=1e9) return '$'+(n/1e9).toFixed(1)+'B';
+  if(Math.abs(n)>=1e6) return '$'+(n/1e6).toFixed(1)+'M';
+  if(Math.abs(n)>=1e3) return '$'+(n/1e3).toFixed(0)+'K';
+  return '$'+n.toFixed(0);
+}
+
+function onMetricChange(){
+  activeMetric=document.getElementById('metric-select').value;
+  metricRange=[null,null];
+  const wrap=document.getElementById('metric-slider-wrap');
+  if(activeMetric==='none'){wrap.style.display='none';applyVisibility();renderLegend();refreshSidebar();return;}
+  // Compute min/max for this metric across all locations with a value
+  const vals=locations.map(l=>l[activeMetric]).filter(v=>v!==null&&v!==undefined);
+  if(!vals.length){wrap.style.display='none';return;}
+  const lo=Math.min(...vals), hi=Math.max(...vals);
+  metricRange=[lo,hi];
+  const sliderLo=document.getElementById('metric-slider-lo');
+  const sliderHi=document.getElementById('metric-slider-hi');
+  const step=(hi-lo)/100||1;
+  sliderLo.min=lo;sliderLo.max=hi;sliderLo.step=step;sliderLo.value=lo;
+  sliderHi.min=lo;sliderHi.max=hi;sliderHi.step=step;sliderHi.value=hi;
+  document.getElementById('metric-val-lo').value=formatCurrency(lo);
+  document.getElementById('metric-val-hi').value=formatCurrency(hi);
+  wrap.style.display='flex';
+  applyVisibility();renderLegend();refreshSidebar();
+}
+
+function onSliderChange(which){
+  let lo=parseFloat(document.getElementById('metric-slider-lo').value);
+  let hi=parseFloat(document.getElementById('metric-slider-hi').value);
+  // Clamp: if handles cross, push the other one
+  if(which==='lo'&&lo>hi){ hi=lo; document.getElementById('metric-slider-hi').value=hi; }
+  if(which==='hi'&&hi<lo){ lo=hi; document.getElementById('metric-slider-lo').value=lo; }
+  metricRange=[lo,hi];
+  document.getElementById('metric-val-lo').value=formatCurrency(lo);
+  document.getElementById('metric-val-hi').value=formatCurrency(hi);
+  applyVisibility();renderLegend();refreshSidebar();
+}
+
+// Called when user types directly into the value box
+function onValueInput(which){
+  const raw=document.getElementById(`metric-val-${which}`).value.replace(/[$,KMBkmb\s]/g,'');
+  let val=parseFloat(raw);
+  if(isNaN(val)) return;
+  // Handle K/M/B suffixes typed by user
+  const orig=document.getElementById(`metric-val-${which}`).value.trim();
+  if(/k$/i.test(orig)) val*=1e3;
+  else if(/m$/i.test(orig)) val*=1e6;
+  else if(/b$/i.test(orig)) val*=1e9;
+  // Clamp to slider bounds
+  const sliderLo=document.getElementById('metric-slider-lo');
+  const absMin=parseFloat(sliderLo.min), absMax=parseFloat(document.getElementById('metric-slider-hi').max);
+  val=Math.max(absMin,Math.min(absMax,val));
+  // Update slider and range
+  if(which==='lo'){
+    const hi=parseFloat(document.getElementById('metric-slider-hi').value);
+    const clamped=Math.min(val,hi);
+    document.getElementById('metric-slider-lo').value=clamped;
+    metricRange[0]=clamped;
+    document.getElementById('metric-val-lo').value=formatCurrency(clamped);
+  } else {
+    const lo=parseFloat(document.getElementById('metric-slider-lo').value);
+    const clamped=Math.max(val,lo);
+    document.getElementById('metric-slider-hi').value=clamped;
+    metricRange[1]=clamped;
+    document.getElementById('metric-val-hi').value=formatCurrency(clamped);
+  }
+  applyVisibility();renderLegend();refreshSidebar();
+}
+
+function updateMetricDropdown(){
+  const sel=document.getElementById('metric-select');
+  const metrics=[
+    {key:'coRevenue',  label:'Company Revenue'},
+    {key:'coEbitda',   label:'Company EBITDA'},
+    {key:'locRevenue', label:'Location Revenue'},
+    {key:'locEbitda',  label:'Location EBITDA'},
+  ];
+  // Check which metrics have at least one non-null value
+  const available=metrics.filter(m=>locations.some(l=>l[m.key]!==null&&l[m.key]!==undefined));
+  // Rebuild options
+  sel.innerHTML='<option value="none">Filter by metric…</option>';
+  available.forEach(m=>{
+    const opt=document.createElement('option');
+    opt.value=m.key;opt.textContent=m.label;
+    sel.appendChild(opt);
+  });
+  // Show/hide the whole dropdown
+  sel.style.display=available.length?'block':'none';
+  // If current selection no longer exists, reset
+  if(activeMetric!=='none'&&!available.find(m=>m.key===activeMetric)){
+    activeMetric='none';sel.value='none';
+    document.getElementById('metric-slider-wrap').style.display='none';
+    metricRange=[null,null];
+  }
+}
+
+function toggleTag(tag){
+  if(activeTags.has(tag)) activeTags.delete(tag);
+  else activeTags.add(tag);
+  applyVisibility();renderLegend();refreshSidebar();
+}
+function clearTags(){
+  activeTags.clear();
+  applyVisibility();renderLegend();refreshSidebar();
+}
+function toggleTagMode(){
+  tagMode=tagMode==='OR'?'AND':'OR';
+  applyVisibility();renderLegend();refreshSidebar();
+}
+
+function toggleLegend(){
+  legendCollapsed=!legendCollapsed;
+  renderLegend();
+}
+
+function exportSidebar(){
+  if(!sidebarLocs.length){toast('Nothing to export','error');return;}
+  const title=document.getElementById('sidebar-title').textContent;
+  const csv=sidebarLocs.map(l=>[l.name,l.address,l.website||'',l.category||'',l.lat||'',l.lng||'']
+    .map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(',')).join('\n');
+  const filename=(title==='All Locations'?'all-locations':title.toLowerCase().replace(/[^a-z0-9]+/g,'-'))+'.csv';
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob(['name,address,website,category,lat,lng\n'+csv],{type:'text/csv'}));
+  a.download=filename;a.click();
+  toast('Exported '+sidebarLocs.length+' locations');
+}
+</script>
+</body>
+</html>
