@@ -181,7 +181,7 @@ let statesGeoJSON    = null;
 let stateLayerMap    = {};
 
 // ── Map init ─────────────────────────────────────────────────────────────────
-const map = L.map('map',{zoomControl:true}).setView([39.5,-98.35],4);
+const map = L.map('map',{zoomControl:true,zoomSnap:0.25,zoomDelta:0.5,wheelPxPerZoomLevel:100}).setView([39.5,-98.35],4);
 // Create a pane above overlayPane (z-index 400) for circles so they're above state fills
 map.createPane('circlePane');
 map.getPane('circlePane').style.zIndex=450;
