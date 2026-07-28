@@ -391,6 +391,9 @@ function catShape(catName){
   const c=categories.find(c=>c.name===catName);
   return (c&&c.shape)||'teardrop';
 }
+function locShape(loc){
+  return loc.shapeOverride||catShape(loc.category);
+}
 function regionColor(stateName){
   return regions[stateName]?.color||'#3b82f6';
 }
@@ -791,7 +794,7 @@ function hexPoints(cx,cy,r){
 // All other shapes are simple centered glyphs, anchored at their center —
 // standard practice for non-pointer map markers.
 const SHAPE_DEFS={
-  teardrop:{w:28,h:36,svg:color=>`<path d="M14 0C6.268 0 0 6.268 0 14c0 9.333 14 22 14 22S28 23.333 28 14C28 6.268 21.732 0 14 0z" fill="${color}"/><circle cx="14" cy="14" r="5" fill="white" opacity="0.9"/>`},
+  teardrop:{w:18,h:23,svg:color=>`<g transform="scale(0.6429)"><path d="M14 0C6.268 0 0 6.268 0 14c0 9.333 14 22 14 22S28 23.333 28 14C28 6.268 21.732 0 14 0z" fill="${color}"/><circle cx="14" cy="14" r="5" fill="white" opacity="0.9"/></g>`},
   circle:{w:22,h:22,svg:color=>`<circle cx="11" cy="11" r="9" fill="${color}" stroke="white" stroke-width="2"/>`},
   square:{w:20,h:20,svg:color=>`<rect x="2" y="2" width="16" height="16" rx="3" fill="${color}" stroke="white" stroke-width="2"/>`},
   diamond:{w:22,h:22,svg:color=>`<polygon points="11,2 20,11 11,20 2,11" fill="${color}" stroke="white" stroke-width="2" stroke-linejoin="round"/>`},
@@ -805,7 +808,7 @@ function makeIcon(color, shape='teardrop', glow=false, dx=0, dy=0){
   const def=SHAPE_DEFS[shape]||SHAPE_DEFS.teardrop;
   const isTeardrop=(def===SHAPE_DEFS.teardrop);
   const w=def.w, h=def.h;
-  const anchorX=isTeardrop?14:w/2;
+  const anchorX=w/2;
   const anchorY=isTeardrop?h:h/2;
   const popupY=isTeardrop?-(h+2):-(h/2+6);
   const glowStyle=glow?'filter:drop-shadow(0 0 4px white) drop-shadow(0 0 2px white)':'';
@@ -903,7 +906,7 @@ function setGlow(ids){
     const l=locations.find(l=>l.id===id);
     if(l&&markers[id]){
       const color=catColor(l.category);
-      markers[id].setIcon(makeIcon(color,catShape(l.category),false,l._pinDx||0,l._pinDy||0));
+      markers[id].setIcon(makeIcon(color,locShape(l),false,l._pinDx||0,l._pinDy||0));
     }
   });
   glowingIds=new Set(ids);
@@ -912,7 +915,7 @@ function setGlow(ids){
     const l=locations.find(l=>l.id===id);
     if(l&&markers[id]){
       const color=catColor(l.category);
-      markers[id].setIcon(makeIcon(color,catShape(l.category),true,l._pinDx||0,l._pinDy||0));
+      markers[id].setIcon(makeIcon(color,locShape(l),true,l._pinDx||0,l._pinDy||0));
     }
   });
 }
@@ -921,7 +924,7 @@ function renderMarker(loc){
   if(markers[loc.id]) markers[loc.id].remove();
   if(!loc.lat||!loc.lng) return;
   const color=catColor(loc.category);
-  const shape=catShape(loc.category);
+  const shape=locShape(loc);
   const m=L.marker([loc.lat,loc.lng],{icon:makeIcon(color,shape,false,loc._pinDx||0,loc._pinDy||0)}).addTo(map);
   const rawUrl=loc.website||'';
   const safeUrl=rawUrl&&!rawUrl.match(/^https?:\/\//)? 'https://'+rawUrl : rawUrl;
@@ -1531,6 +1534,8 @@ async function parseAndLoadWorkbook(wb){
     const locRevenue=parseNum(row[11]);
     const locEbitda =parseNum(row[12]);
     const notes     =row[13]!==undefined&&row[13]!==null?String(row[13]).trim():'';
+    const shapeRaw  =row[14]!==undefined&&row[14]!==null?String(row[14]).trim().toLowerCase():'';
+    const shapeOverride=SHAPE_NAMES.includes(shapeRaw)?shapeRaw:null;
     locations.push({
       id:Date.now().toString(36)+Math.random().toString(36).slice(2),
       name,parent,address:addr,
@@ -1538,7 +1543,7 @@ async function parseAndLoadWorkbook(wb){
       category:cat||categories[0]?.name||'Uncategorized',
       lat:lat||null,lng:lng||null,
       showRadius,tags,
-      coRevenue,coEbitda,locRevenue,locEbitda,notes
+      coRevenue,coEbitda,locRevenue,locEbitda,notes,shapeOverride
     });
     added++;
   }
