@@ -182,6 +182,7 @@ let stateLayerMap    = {};
 
 // ── Map init ─────────────────────────────────────────────────────────────────
 const map = L.map('map',{zoomControl:true,zoomSnap:0.25,zoomDelta:0.5,wheelPxPerZoomLevel:100}).setView([39.5,-98.35],4);
+map.on('zoomend', function(){ if(typeof refreshPinOffsets==='function') refreshPinOffsets(); });
 // Create a pane above overlayPane (z-index 400) for circles so they're above state fills
 map.createPane('circlePane');
 map.getPane('circlePane').style.zIndex=450;
@@ -794,13 +795,13 @@ function hexPoints(cx,cy,r){
 // All other shapes are simple centered glyphs, anchored at their center —
 // standard practice for non-pointer map markers.
 const SHAPE_DEFS={
-  teardrop:{w:28,h:36,svg:color=>`<path d="M14 0C6.268 0 0 6.268 0 14c0 9.333 14 22 14 22S28 23.333 28 14C28 6.268 21.732 0 14 0z" fill="${color}"/><circle cx="14" cy="14" r="5" fill="white" opacity="0.9"/>`},
-  circle:{w:30,h:30,svg:color=>`<circle cx="15" cy="15" r="13" fill="${color}" stroke="white" stroke-width="2.5"/>`},
-  square:{w:28,h:28,svg:color=>`<rect x="3" y="3" width="22" height="22" rx="4" fill="${color}" stroke="white" stroke-width="2.5"/>`},
-  diamond:{w:30,h:30,svg:color=>`<polygon points="15,3 27,15 15,27 3,15" fill="${color}" stroke="white" stroke-width="2.5" stroke-linejoin="round"/>`},
-  triangle:{w:30,h:27,svg:color=>`<polygon points="15,3 27,24 3,24" fill="${color}" stroke="white" stroke-width="2.5" stroke-linejoin="round"/>`},
-  star:{w:32,h:32,svg:color=>`<polygon points="${starPoints(16,16,13,5.5,5)}" fill="${color}" stroke="white" stroke-width="2" stroke-linejoin="round"/>`},
-  hexagon:{w:32,h:29,svg:color=>`<polygon points="${hexPoints(16,15,13)}" fill="${color}" stroke="white" stroke-width="2.5" stroke-linejoin="round"/>`}
+  teardrop:{w:32,h:41,svg:color=>`<g transform="scale(1.1429)"><path d="M14 0C6.268 0 0 6.268 0 14c0 9.333 14 22 14 22S28 23.333 28 14C28 6.268 21.732 0 14 0z" fill="${color}"/><circle cx="14" cy="14" r="5" fill="white" opacity="0.9"/></g>`},
+  circle:{w:35,h:35,svg:color=>`<circle cx="17.5" cy="17.5" r="15" fill="${color}" stroke="white" stroke-width="2.5"/>`},
+  square:{w:32,h:32,svg:color=>`<rect x="3" y="3" width="26" height="26" rx="4" fill="${color}" stroke="white" stroke-width="2.5"/>`},
+  diamond:{w:35,h:35,svg:color=>`<polygon points="17.5,3 32,17.5 17.5,32 3,17.5" fill="${color}" stroke="white" stroke-width="2.5" stroke-linejoin="round"/>`},
+  triangle:{w:35,h:32,svg:color=>`<polygon points="17.5,3 32,29 3,29" fill="${color}" stroke="white" stroke-width="2.5" stroke-linejoin="round"/>`},
+  star:{w:37,h:37,svg:color=>`<polygon points="${starPoints(18.5,18.5,15,6.3,5)}" fill="${color}" stroke="white" stroke-width="2" stroke-linejoin="round"/>`},
+  hexagon:{w:37,h:34,svg:color=>`<polygon points="${hexPoints(18.5,17,15)}" fill="${color}" stroke="white" stroke-width="2.5" stroke-linejoin="round"/>`}
 };
 const SHAPE_NAMES=Object.keys(SHAPE_DEFS);
 
@@ -823,27 +824,53 @@ function makeIcon(color, shape='teardrop', glow=false, dx=0, dy=0){
   return L.divIcon({html,className:'',iconSize:[w,h],iconAnchor:[anchorX-dx,anchorY-dy],popupAnchor:[dx,popupY+dy]});
 }
 
-// Detect pins that sit at (or essentially at) the same coordinates and give
-// each one a small fixed-pixel offset so they fan out instead of stacking
-// exactly on top of each other. Grouping is rounded to ~11m (4 decimal
-// places) so pins geocoded to the same building/address are treated as
-// one cluster, without pulling in genuinely separate nearby locations.
+// Detect pins that visually collide on screen at the CURRENT zoom level and
+// give each one a small fixed-pixel offset so they fan out instead of
+// stacking on top of each other. Two locations several miles apart can
+// project to the same handful of screen pixels when zoomed out to a
+// country-wide view, so this checks actual projected pixel distance rather
+// than raw lat/lng — it's recomputed on every zoom change via 'zoomend'.
 function computePinOffsets(){
+  const valid=locations.filter(l=>l.lat!=null&&l.lng!=null);
+  const n=valid.length;
+  const pts=valid.map(l=>map.latLngToContainerPoint([l.lat,l.lng]));
+  const threshold=22; // px — collide if projected points land this close together
+  const parent=valid.map((_,i)=>i);
+  function find(i){ while(parent[i]!==i){ parent[i]=parent[parent[i]]; i=parent[i]; } return i; }
+  function union(i,j){ const ri=find(i),rj=find(j); if(ri!==rj) parent[ri]=rj; }
+  for(let i=0;i<n;i++){
+    for(let j=i+1;j<n;j++){
+      const dx=pts[i].x-pts[j].x, dy=pts[i].y-pts[j].y;
+      if(dx*dx+dy*dy<threshold*threshold) union(i,j);
+    }
+  }
   const groups={};
-  locations.forEach(l=>{
-    if(l.lat==null||l.lng==null) return;
-    const key=l.lat.toFixed(4)+','+l.lng.toFixed(4);
-    (groups[key]=groups[key]||[]).push(l);
-  });
-  Object.values(groups).forEach(group=>{
-    const n=group.length;
-    if(n<=1){ group.forEach(l=>{l._pinDx=0;l._pinDy=0;}); return; }
-    const radius=n<=2?6:Math.min(14,7+n);
-    group.forEach((l,i)=>{
-      const angle=-Math.PI/2+(2*Math.PI*i)/n;
-      l._pinDx=Math.round(Math.cos(angle)*radius);
-      l._pinDy=Math.round(Math.sin(angle)*radius);
+  for(let i=0;i<n;i++){
+    const root=find(i);
+    (groups[root]=groups[root]||[]).push(i);
+  }
+  Object.values(groups).forEach(idxs=>{
+    const gn=idxs.length;
+    if(gn<=1){ valid[idxs[0]]._pinDx=0; valid[idxs[0]]._pinDy=0; return; }
+    const radius=gn<=2?9:Math.min(24,10+gn*2);
+    idxs.forEach((idx,k)=>{
+      const angle=-Math.PI/2+(2*Math.PI*k)/gn;
+      valid[idx]._pinDx=Math.round(Math.cos(angle)*radius);
+      valid[idx]._pinDy=Math.round(Math.sin(angle)*radius);
     });
+  });
+}
+
+// Recompute offsets for the current zoom and refresh already-rendered
+// marker icons in place (without rebuilding markers/popups/circles).
+function refreshPinOffsets(){
+  computePinOffsets();
+  locations.forEach(l=>{
+    if(!markers[l.id]) return;
+    const color=catColor(l.category);
+    const shape=locShape(l);
+    const glow=glowingIds.has(l.id);
+    markers[l.id].setIcon(makeIcon(color,shape,glow,l._pinDx||0,l._pinDy||0));
   });
 }
 
