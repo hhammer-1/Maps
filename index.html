@@ -187,7 +187,8 @@ map.on('zoomend', function(){ if(typeof refreshPinOffsets==='function') refreshP
 map.createPane('circlePane');
 map.getPane('circlePane').style.zIndex=450;
 map.getPane('circlePane').style.pointerEvents='auto';
-L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',{attribution:'© CartoDB',maxZoom:19}).addTo(map);
+L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}',{attribution:'Tiles &copy; Esri',maxZoom:19,maxNativeZoom:16}).addTo(map);
+L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,maxNativeZoom:16}).addTo(map);
 // State layer pane — below circle pane
 map.createPane('statePane');
 map.getPane('statePane').style.zIndex=350;
