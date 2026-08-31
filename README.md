@@ -59,7 +59,7 @@ The entire app is one `index.html` file. CSS, HTML, and JavaScript all live toge
 |---|---|
 | [Leaflet.js](https://leafletjs.com) | Map rendering, markers, circles, popups |
 | [SheetJS](https://sheetjs.com) | Reading `.xlsx` files from Google Sheets or local upload |
-| [CartoDB Voyager](https://carto.com/basemaps/) | Map tile imagery |
+| [Esri Light Gray Canvas](https://www.arcgis.com/home/item.html?id=8438cd67c1974d7de3a8e6a5ac25e412) | Map tile imagery (free, no API key) |
 | [us-atlas](https://github.com/topojson/us-atlas) | US state boundary polygons |
 
 ### Data flow
@@ -209,7 +209,7 @@ The entire app is one `index.html` file. CSS, HTML, and JavaScript all live toge
 |---|---|
 | [Leaflet.js](https://leafletjs.com) | Map rendering, markers, circles, popups |
 | [SheetJS](https://sheetjs.com) | Reading `.xlsx` files from Google Sheets or local upload |
-| [CartoDB Voyager](https://carto.com/basemaps/) | Map tile imagery |
+| [Esri Light Gray Canvas](https://www.arcgis.com/home/item.html?id=8438cd67c1974d7de3a8e6a5ac25e412) | Map tile imagery (free, no API key) |
 | [us-atlas](https://github.com/topojson/us-atlas) | US state boundary polygons |
 
 ### Data flow
