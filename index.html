@@ -102,6 +102,7 @@
       style="width:58px;background:#1e2535;border:1px solid #2a3045;color:#c5c9d6;padding:5px 7px;border-radius:6px;font-size:12px;outline:none"
       oninput="onRadiusInput()" title="Circle radius in miles">
     <button id="radius-toggle" class="tb-btn" onclick="toggleCircles()" title="Show/hide radius circles" style="padding:5px 8px">⊙</button>
+       <button id="fan-toggle" class="tb-btn" onclick="toggleFanOut()" title="Pin fan-out ON — overlapping pins spread apart" style="padding:5px 8px">✳</button>
   </div>
   <div style="display:flex;align-items:center;gap:6px;margin-left:4px;flex-shrink:0">
     <select id="metric-select" onchange="onMetricChange()"
@@ -830,35 +831,66 @@ function makeIcon(color, shape='teardrop', glow=false, dx=0, dy=0){
 // project to the same handful of screen pixels when zoomed out to a
 // country-wide view, so this checks actual projected pixel distance rather
 // than raw lat/lng — it's recomputed on every zoom change via 'zoomend'.
+let fanEnabled = true;
+
 function computePinOffsets(){
   const valid=locations.filter(l=>l.lat!=null&&l.lng!=null);
+  valid.forEach(l=>{ l._pinDx=0; l._pinDy=0; });
   const n=valid.length;
+  if(!n || !fanEnabled) return;
+
   const pts=valid.map(l=>map.latLngToContainerPoint([l.lat,l.lng]));
-  const threshold=22; // px — collide if projected points land this close together
-  const parent=valid.map((_,i)=>i);
-  function find(i){ while(parent[i]!==i){ parent[i]=parent[parent[i]]; i=parent[i]; } return i; }
-  function union(i,j){ const ri=find(i),rj=find(j); if(ri!==rj) parent[ri]=rj; }
+  const threshold=15;            // px — below this two pins genuinely overlap
+  const t2=threshold*threshold;
+
+  // Greedy leader clustering. A pin joins a group only if it is within the
+  // threshold of that group's SEED — never merely of some other member.
+  // The previous union-find version merged transitively, so a chain of
+  // "close to a neighbour" pins across half the Midwest collapsed into one
+  // giant group and every member got shoved up to 24px off its true point,
+  // including pins that never overlapped anything.
+  const assigned=new Array(n).fill(false);
+  const groups=[];
   for(let i=0;i<n;i++){
+    if(assigned[i]) continue;
+    assigned[i]=true;
+    const g=[i];
     for(let j=i+1;j<n;j++){
+      if(assigned[j]) continue;
       const dx=pts[i].x-pts[j].x, dy=pts[i].y-pts[j].y;
-      if(dx*dx+dy*dy<threshold*threshold) union(i,j);
+      if(dx*dx+dy*dy<t2){ assigned[j]=true; g.push(j); }
     }
+    groups.push(g);
   }
-  const groups={};
-  for(let i=0;i<n;i++){
-    const root=find(i);
-    (groups[root]=groups[root]||[]).push(i);
-  }
-  Object.values(groups).forEach(idxs=>{
+
+  groups.forEach(idxs=>{
     const gn=idxs.length;
-    if(gn<=1){ valid[idxs[0]]._pinDx=0; valid[idxs[0]]._pinDy=0; return; }
-    const radius=gn<=2?9:Math.min(24,10+gn*2);
-    idxs.forEach((idx,k)=>{
+    if(gn<=1) return;            // not overlapping — leave it exactly where it is
+    // Anchor the fan on the group's centroid rather than on each pin's own
+    // point, so the cluster as a whole stays over the place it represents.
+    const cx=idxs.reduce((a,i)=>a+pts[i].x,0)/gn;
+    const cy=idxs.reduce((a,i)=>a+pts[i].y,0)/gn;
+    const radius=Math.min(15,6+gn*1.5);
+    // Stable ordering so the fan doesn't reshuffle between renders.
+    const ordered=idxs.slice().sort((a,b)=>pts[a].x-pts[b].x||pts[a].y-pts[b].y||a-b);
+    ordered.forEach((idx,k)=>{
       const angle=-Math.PI/2+(2*Math.PI*k)/gn;
-      valid[idx]._pinDx=Math.round(Math.cos(angle)*radius);
-      valid[idx]._pinDy=Math.round(Math.sin(angle)*radius);
+      valid[idx]._pinDx=Math.round(cx+Math.cos(angle)*radius-pts[idx].x);
+      valid[idx]._pinDy=Math.round(cy+Math.sin(angle)*radius-pts[idx].y);
     });
   });
+}
+
+// Turn pin fan-out on/off. Off = every pin sits on its exact lat/lng, which
+// is what you want for a screenshot going into deal materials.
+function toggleFanOut(){
+  fanEnabled=!fanEnabled;
+  const btn=document.getElementById('fan-toggle');
+  if(btn){
+    btn.style.opacity=fanEnabled?'1':'0.4';
+    btn.title=fanEnabled?'Pin fan-out ON — overlapping pins spread apart':'Pin fan-out OFF — pins sit on exact coordinates';
+  }
+  refreshPinOffsets();
 }
 
 // Recompute offsets for the current zoom and refresh already-rendered
