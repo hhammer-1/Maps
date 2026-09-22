@@ -75,6 +75,16 @@
   }
   .pin-bouncing .pin-wrap{animation:pin-bounce .7s ease infinite}
   /* Excel format guide */
+   /* Vertical zoom slider (right side). The range input is rotated rather than
+     using orient/appearance:slider-vertical, which are inconsistent across browsers. */
+  #zoom-slider-ctl{background:#161b27;border:1px solid #2a2f3e;border-radius:8px;padding:8px 6px;
+    display:flex;flex-direction:column;align-items:center;gap:6px;box-shadow:0 2px 8px rgba(0,0,0,.35)}
+  #zoom-slider-ctl .zs-btn{width:26px;height:22px;background:#1e2535;border:1px solid #2a3045;color:#c5c9d6;
+    border-radius:5px;cursor:pointer;font-size:15px;line-height:1;padding:0;font-weight:600}
+  #zoom-slider-ctl .zs-btn:hover{background:#28304a}
+  #zoom-slider-ctl .zs-track{height:150px;width:26px;display:flex;align-items:center;justify-content:center}
+  #zoom-slider-ctl input[type=range]{width:150px;margin:0;transform:rotate(-90deg);accent-color:#4A90D9;cursor:pointer}
+  #zoom-slider-ctl .zs-val{font-size:10px;color:#9ca3af;font-variant-numeric:tabular-nums;letter-spacing:.3px}
 </style>
 </head>
 <body>
@@ -182,8 +192,50 @@ let statesGeoJSON    = null;
 let stateLayerMap    = {};
 
 // ── Map init ─────────────────────────────────────────────────────────────────
-const map = L.map('map',{zoomControl:true,zoomSnap:0.25,zoomDelta:0.5,wheelPxPerZoomLevel:100}).setView([39.5,-98.35],4);
+const map = L.map('map',{zoomControl:true,zoomSnap:0.25,zoomDelta:0.25,wheelPxPerZoomLevel:160}).setView([39.5,-98.35],4);
 map.on('zoomend', function(){ if(typeof refreshPinOffsets==='function') refreshPinOffsets(); });
+ // ── Zoom slider ──────────────────────────────────────────────────────────────
+// Leaflet's +/- control steps by zoomDelta; this gives continuous control in
+// 0.25 increments plus a readout, so you can stop between tile levels.
+const ZOOM_MIN=3, ZOOM_MAX=14, ZOOM_STEP=0.25;
+const ZoomSlider = L.Control.extend({
+  options:{position:'topright'},
+  onAdd:function(m){
+    const div=L.DomUtil.create('div','');
+    div.id='zoom-slider-ctl';
+    div.innerHTML=
+      '<button class="zs-btn" id="zs-in" title="Zoom in">+</button>'+
+      '<div class="zs-track"><input id="zoom-range" type="range" min="'+ZOOM_MIN+'" max="'+ZOOM_MAX+
+        '" step="'+ZOOM_STEP+'" value="'+m.getZoom()+'"></div>'+
+      '<button class="zs-btn" id="zs-out" title="Zoom out">&minus;</button>'+
+      '<div class="zs-val" id="zoom-val">'+m.getZoom().toFixed(2)+'</div>';
+    // Stop drags and wheel over the control from panning/zooming the map
+    L.DomEvent.disableClickPropagation(div);
+    L.DomEvent.disableScrollPropagation(div);
+    return div;
+  }
+});
+map.addControl(new ZoomSlider());
+
+function clampZoomVal(z){ return Math.max(ZOOM_MIN,Math.min(ZOOM_MAX,Math.round(z/ZOOM_STEP)*ZOOM_STEP)); }
+function syncZoomSlider(){
+  const z=map.getZoom();
+  const r=document.getElementById('zoom-range'), v=document.getElementById('zoom-val');
+  if(r) r.value=z;
+  if(v) v.textContent=z.toFixed(2);
+}
+(function wireZoomSlider(){
+  const r=document.getElementById('zoom-range');
+  const inBtn=document.getElementById('zs-in'), outBtn=document.getElementById('zs-out');
+  if(r) r.addEventListener('input',e=>{
+    const z=clampZoomVal(parseFloat(e.target.value));
+    map.setZoom(z,{animate:false});
+    const v=document.getElementById('zoom-val'); if(v) v.textContent=z.toFixed(2);
+  });
+  if(inBtn)  inBtn.onclick =()=>map.setZoom(clampZoomVal(map.getZoom()+ZOOM_STEP));
+  if(outBtn) outBtn.onclick=()=>map.setZoom(clampZoomVal(map.getZoom()-ZOOM_STEP));
+})();
+map.on('zoom zoomend', syncZoomSlider);
 // Create a pane above overlayPane (z-index 400) for circles so they're above state fills
 map.createPane('circlePane');
 map.getPane('circlePane').style.zIndex=450;
