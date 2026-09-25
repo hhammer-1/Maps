@@ -886,8 +886,8 @@ function makeIcon(color, shape='teardrop', glow=false, dx=0, dy=0){
 let fanEnabled = true;
 
 function computePinOffsets(){
-  const valid=locations.filter(l=>l.lat!=null&&l.lng!=null);
-  valid.forEach(l=>{ l._pinDx=0; l._pinDy=0; });
+locations.forEach(l=>{ l._pinDx=0; l._pinDy=0; });
+const valid=locations.filter(l=>l.lat!=null&&l.lng!=null&&isLocVisible(l));
   const n=valid.length;
   if(!n || !fanEnabled) return;
 
@@ -1360,15 +1360,15 @@ function refreshSidebar(){
 
 function toggleCat(cat){
   hiddenCats.has(cat)?hiddenCats.delete(cat):hiddenCats.add(cat);
-  applyVisibility();renderLegend();refreshSidebar();
+  applyVisibility();renderLegend();refreshSidebar();refreshPinOffsets();
 }
 function hideAllCats(){
   categories.forEach(c=>hiddenCats.add(c.name));
-  applyVisibility();renderLegend();refreshSidebar();
+  applyVisibility();renderLegend();refreshSidebar();refreshPinOffsets();
 }
 function showAllCats(){
   hiddenCats.clear();
-  applyVisibility();renderLegend();refreshSidebar();
+  applyVisibility();renderLegend();refreshSidebar();refreshPinOffsets();
 }
 function toggleRegionCat(cat){
   hiddenRegionCats.has(cat)?hiddenRegionCats.delete(cat):hiddenRegionCats.add(cat);
@@ -1776,7 +1776,7 @@ function onMetricChange(){
   activeMetric=document.getElementById('metric-select').value;
   metricRange=[null,null];
   const wrap=document.getElementById('metric-slider-wrap');
-  if(activeMetric==='none'){wrap.style.display='none';applyVisibility();renderLegend();refreshSidebar();return;}
+  if(activeMetric==='none'){wrap.style.display='none';applyVisibility();renderLegend();refreshSidebar();refreshPinOffsets();;return;}
   // Compute min/max for this metric across all locations with a value
   const vals=locations.map(l=>l[activeMetric]).filter(v=>v!==null&&v!==undefined);
   if(!vals.length){wrap.style.display='none';return;}
@@ -1790,7 +1790,7 @@ function onMetricChange(){
   document.getElementById('metric-val-lo').value=formatCurrency(lo);
   document.getElementById('metric-val-hi').value=formatCurrency(hi);
   wrap.style.display='flex';
-  applyVisibility();renderLegend();refreshSidebar();
+  applyVisibility();renderLegend();refreshSidebar();refreshPinOffsets();
 }
 
 function onSliderChange(which){
@@ -1802,7 +1802,7 @@ function onSliderChange(which){
   metricRange=[lo,hi];
   document.getElementById('metric-val-lo').value=formatCurrency(lo);
   document.getElementById('metric-val-hi').value=formatCurrency(hi);
-  applyVisibility();renderLegend();refreshSidebar();
+  applyVisibility();renderLegend();refreshSidebar();refreshPinOffsets();
 }
 
 // Called when user types directly into the value box
@@ -1833,7 +1833,7 @@ function onValueInput(which){
     metricRange[1]=clamped;
     document.getElementById('metric-val-hi').value=formatCurrency(clamped);
   }
-  applyVisibility();renderLegend();refreshSidebar();
+  applyVisibility();renderLegend();refreshSidebar();refreshPinOffsets();
 }
 
 function updateMetricDropdown(){
@@ -1866,15 +1866,15 @@ function updateMetricDropdown(){
 function toggleTag(tag){
   if(activeTags.has(tag)) activeTags.delete(tag);
   else activeTags.add(tag);
-  applyVisibility();renderLegend();refreshSidebar();
+  applyVisibility();renderLegend();refreshSidebar();refreshPinOffsets();
 }
 function clearTags(){
   activeTags.clear();
-  applyVisibility();renderLegend();refreshSidebar();
+  applyVisibility();renderLegend();refreshSidebar();refreshPinOffsets();
 }
 function toggleTagMode(){
   tagMode=tagMode==='OR'?'AND':'OR';
-  applyVisibility();renderLegend();refreshSidebar();
+  applyVisibility();renderLegend();refreshSidebar();refreshPinOffsets();
 }
 
 function toggleLegend(){
