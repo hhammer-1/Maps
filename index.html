@@ -892,7 +892,7 @@ function computePinOffsets(){
   if(!n || !fanEnabled) return;
 
   const pts=valid.map(l=>map.latLngToContainerPoint([l.lat,l.lng]));
-  const threshold=8;            // px — below this two pins genuinely overlap
+  const threshold=4;            // px — below this two pins genuinely overlap
   const t2=threshold*threshold;
 
   // Greedy leader clustering. A pin joins a group only if it is within the
